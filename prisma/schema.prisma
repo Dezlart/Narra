@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+// Moderation state belongs to each revision, not the publication itself.
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ArticleRevisionStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  image         String?
+  // Assigned during onboarding in PHASE 2; default auth signup need not supply it.
+  username      String?  @unique
+  bio           String?
+  role          UserRole @default(USER)
+  isBanned      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  articles          Article[]         @relation("ArticleAuthor")
+  reviewedRevisions ArticleRevision[] @relation("RevisionReviewer")
+}
+
+model Article {
+  id                  String        @id @default(cuid())
+  authorId            String
+  slug                String?       @unique
+  status              ArticleStatus @default(DRAFT)
+  publishedRevisionId String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  publishedAt         DateTime?
+
+  author    User              @relation("ArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  revisions ArticleRevision[] @relation("ArticleRevisions")
+
+  // Composite FK prevents pointing at another article's revision.
+  publishedRevision ArticleRevision? @relation("PublishedRevision", fields: [id, publishedRevisionId], references: [articleId, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([authorId, updatedAt])
+  @@index([status, publishedAt(sort: Desc)])
+}
+
+model ArticleRevision {
+  id              String                @id @default(cuid())
+  articleId       String
+  title           String                @default("")
+  excerpt         String                @default("")
+  content         Json
+  coverImage      String?
+  categoryId      String?
+  version         Int
+  status          ArticleRevisionStatus @default(DRAFT)
+  rejectionReason String?
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewedById    String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  article    Article              @relation("ArticleRevisions", fields: [articleId], references: [id], onDelete: Cascade)
+  category   Category?            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  reviewedBy User?                @relation("RevisionReviewer", fields: [reviewedById], references: [id], onDelete: Restrict)
+  tags       ArticleRevisionTag[]
+
+  // At most one publication can match this pair: Article.id is its primary key.
+  publishedBy Article[] @relation("PublishedRevision")
+
+  @@unique([articleId, version])
+  @@unique([articleId, id])
+  @@index([status, submittedAt])
+  @@index([categoryId])
+  @@index([reviewedById])
+}
+
+model Category {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  description String?
+  revisions   ArticleRevision[]
+}
+
+model Tag {
+  id        String               @id @default(cuid())
+  name      String
+  slug      String               @unique
+  revisions ArticleRevisionTag[]
+}
+
+// Category and tags are versioned so edits cannot bypass future moderation.
+model ArticleRevisionTag {
+  revisionId String
+  tagId      String
+  revision   ArticleRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  tag        Tag             @relation(fields: [tagId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, tagId])
+  @@index([tagId])
+}
