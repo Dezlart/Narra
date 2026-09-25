@@ -1,10 +1,125 @@
 # Narra
 
-> Текущий этап: PHASE 1 — Foundation. Последующие фазы требуют отдельной команды.
+> Текущий этап: PHASE 3 — Articles, Rich-Text Editor & Drafts. PHASE 1–2 завершены.
+> PHASE 4 и последующие фазы требуют отдельной команды.
 > Перед началом каждой новой фазы читать этот файл целиком. Решения реализации
 > ниже уточняют концептуальные модели исходной спецификации, не расширяя scope.
 
-## Принятые решения PHASE 1 (24 сентября 2026)
+## Принятые решения PHASE 3 (25 сентября 2026)
+
+- Tiptap 3.31.3: React/core/pm, StarterKit + Image. Client Component,
+  immediatelyRender=false; paragraph/H1–H3/bold/italic/link/lists/quote/code/images/undo.
+  Статьи и профиль используют прежний application shell и дизайн-систему.
+- Article создаётся вместе с первой revision через nested write в транзакции,
+  authorId берётся из requireAuth. Стабильный slug story-UUID не зависит от заголовка.
+  GET/prefetch ничего не создают: /editor/new открывает форму явного POST действия.
+- Только DRAFT редактируется. PENDING блокирует изменения статьи; ARCHIVED закрыт.
+  Для опубликованной Article отдельное POST действие копирует approved revision
+  вместе с категорией/тегами в новый DRAFT. Article.status/publishedRevisionId
+  и approved content не меняются. Полного moderation workflow нет.
+- editVersion — отдельный счётчик сохранений, не ArticleRevision.version.
+  Сервер проверяет его при update/delete. Клиент сериализует запросы, debounce
+  1300 мс, передаёт только изменившиеся поля. Конфликт не перезаписывает текст:
+  редактор предлагает скачать JSON-копию и явно загрузить серверную версию.
+  Статус «Сохранено» появляется только после ответа сервера.
+- Авторизация внутри services; транзакции блокируют Article FOR UPDATE и User
+  FOR SHARE, повторно проверяют бан. Поля ownership/status/reviewer запрещены
+  строгими Zod schemas. Публичный composite FK сохранён.
+- Current user дедуплицируется React cache только внутри одного RSC request,
+  чтобы Header и page не дублировали запросы. Явные API headers и новые запросы
+  всегда читаются заново; write-транзакция отдельно проверяет текущий бан.
+  Prisma singleton общий для серверных bundles и в production, idle pool 60 сек.
+- ProseMirror attrs нормализуются в plain JSON перед React Server Action:
+  null-prototype objects иначе сериализуются Flight как temporary references.
+  Server validation остаётся обязательной. EditorContent монтируется до первой
+  toolbar transaction, чтобы не застрять в SSR/loading состоянии.
+  Link.title из Tiptap 3 допускает null или строку до 300 символов; произвольные
+  атрибуты по-прежнему отклоняются.
+- Новая миграция 20260925180000_article_drafts: editVersion, CHECK >= 0,
+  partial UNIQUE на один DRAFT на Article, ArticleImage. SQL CHECK и partial index
+  поддерживать явно: Prisma DSL не описывает все эти ограничения.
+- Tiptap JSON проверяется по whitelist узлов/атрибутов/marks и грамматике:
+  100 000 символов текста, 400 000 UTF-8 bytes JSON, 10 000 узлов, глубина 24.
+  Ссылки только http/https/mailto без credentials/control chars. React renderer
+  не использует HTML injection. Image src только собственный authenticated route;
+  сервис подтверждает принадлежность всех изображений текущей Article.
+- Категории из PostgreSQL; idempotent seed шести базовых категорий не меняет
+  существующие записи. Теги: NFKC/lowercase/пробелы, до 8 уникальных тегов,
+  slug — обратимое hex-кодирование нормализованного имени без коллизий C++/C#.
+- Vercel Blob 2.8.0, **private store**, серверные uploads через Route Handler,
+  Origin/auth/ownership/status, фактический лимит входного stream 3 MiB.
+  Sharp 0.35.4 сверяет decoded format с MIME, отвергает SVG/анимацию/повреждённые
+  файлы и >20 MP, перекодирует в WebP <=2400px без metadata. До 100 изображений
+  на Article, до 10 в минуту. Storage pathname создаёт сервер.
+- ArticleImage привязан к Article для повторного использования в её revisions.
+  Чтение private Blob через get и авторизованный endpoint с no-store; наружу
+  не передаются storage token/pathname. Публичная выдача изображений — PHASE 5.
+  Удаление draft revision не удаляет общие Blob objects. Автоматической очистки
+  неиспользуемых объектов пока нет; удалять их вручную только после проверки ссылок.
+- Удаление единственной неопубликованной DRAFT удаляет её Article. Во всех других
+  случаях удаляется только выбранная DRAFT revision; public pointer не очищается.
+- DATABASE_URL и секреты сохранены. Prisma CLI использует connect_timeout=30,
+  если владелец не указал свой; pg connectionTimeoutMillis=15000 ограничивает
+  ожидание недоступного соединения. Это не отключает TLS и не меняет provider.
+
+Источники PHASE 3: [Tiptap / Next.js](https://tiptap.dev/docs/editor/getting-started/install/nextjs),
+[StarterKit](https://tiptap.dev/docs/editor/extensions/functionality/starterkit),
+[Vercel Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk),
+[Sharp](https://sharp.pixelplumbing.com/api-constructor/),
+[Prisma transactions](https://www.prisma.io/docs/orm/prisma-client/queries/transactions).
+Prisma остаётся 7.10.0; API дополнительно проверены по установленному CLI/client,
+Next.js — по node_modules/next/dist/docs (Server Actions и Route Handlers).
+
+## Принятые решения PHASE 2 (25 сентября 2026)
+
+- Better Auth 1.7.6 + официальный Prisma adapter 1.7.6, Next App Router handler
+  `/api/auth/[...all]`, server-only ленивый config и отдельный React client.
+  Zod 4.6.5, Vitest 5.0.1, tsx 4.23.15. ESLint 9 сохранён по итогам PHASE 1.
+- Используется прежний User и enum UserRole, без отдельной системы ролей/банов.
+  Добавлены Account, Session, Verification, RateLimit; миграция
+  `20260925120000_authentication` только добавляет таблицы, индексы и FK.
+  Article/ArticleRevision и SQL CHECKs начальной миграции не изменены.
+- Signup требует нормализованный username и email; уникальность обеспечивает
+  БД, предзапрос username нужен только для понятной ошибки. Username nullable
+  в БД исключительно для legacy-совместимости; новые регистрации без него
+  запрещены. Все новые пользователи USER, emailVerified=false, isBanned=false.
+  Пароль хеширует Better Auth. User/session создаются в транзакции adapter;
+  session hook использует internalAdapter, чтобы видеть незакоммиченного User.
+- Реальные DB sessions, HttpOnly/SameSite=Lax cookie, Secure на HTTPS,
+  срок 7 дней, updateAge 1 день, без cookie cache. Серверные guards каждый раз
+  проверяют актуальные User.role/isBanned; application service авторизует сам.
+  Бан дополнительно проверяется атомарно при profile update и при создании сессии.
+- Приватные страницы `/dashboard`, `/dashboard/settings`. Profile service
+  принимает строго name/username/bio, не принимает ID от клиента; публичный
+  select ограничен name/username/bio/image/createdAt. Avatar пока инициалы.
+  Изменение email/пароля, recovery, verification mail и image uploads отложены.
+- Начальный ADMIN назначается только вручную локальной командой
+  `npm run admin:promote -- --email <email> --confirm` существующему активному
+  зарегистрированному пользователю. HTTP endpoint повышения роли отсутствует.
+- Trusted origin берётся из BETTER_AUTH_URL; Origin/CSRF не отключаются даже
+  в тестах. ReturnTo ограничен whitelist. Rate limit хранится в БД;
+  доверенную цепочку proxy необходимо уточнить перед публичным deploy.
+- Header зависит от текущей сессии: страницы теперь рендерятся динамически.
+  Главная и её loading перенесены в route group `(home)` без изменения URL
+  и содержимого. Общая streaming boundary иначе превращала profile 404 в HTTP 200.
+  Logout использует полную навигацию; private BFCache pages перезагружаются.
+- Реальный DATABASE_URL сохранён, в игнорируемый .env добавлены случайный
+  BETTER_AUTH_SECRET и локальный BETTER_AUTH_URL. Миграция применена к
+  подключённой пользователем development Neon. Reset/db push не используются.
+- Тесты разделены на не требующие БД и явно запускаемые интеграционные:
+  последние создают и удаляют только свои случайные аккаунты, не выдают ADMIN.
+  PHASE2_REPORT.md содержит фактические результаты и ограничения.
+
+Источники PHASE 2: [Better Auth / Next](https://better-auth.com/docs/integrations/next),
+[Prisma adapter](https://better-auth.com/docs/adapters/prisma),
+[hooks](https://better-auth.com/docs/concepts/hooks),
+[sessions](https://better-auth.com/docs/concepts/session-management),
+[rate limits](https://better-auth.com/docs/concepts/rate-limit),
+[Prisma CLI](https://docs.prisma.io/docs/orm/reference/prisma-cli-reference).
+Для точного Prisma 7 workflow дополнительно сверены help установленного CLI
+7.10.0 и исходники schema/adapter; актуальный сайт также описывает Prisma 8.
+
+## Принятые решения PHASE 1 (24 сентября 2026, историческая фиксация)
 
 - Модульный монолит Next.js App Router; Server Components по умолчанию.
   Клиентская интерактивность только у переключателя демонстрационных тем и

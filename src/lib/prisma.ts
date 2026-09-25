@@ -9,7 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 
 let client: PrismaClient | undefined;
 
-/** Lazy initialization keeps the presentation-only foundation independent of DB credentials. */
+/** Lazy initialization allows generation and build without opening a DB connection. */
 export function getPrisma(): PrismaClient {
   if (client) return client;
   if (globalForPrisma.narraPrisma) return globalForPrisma.narraPrisma;
@@ -19,12 +19,12 @@ export function getPrisma(): PrismaClient {
     throw new Error("DATABASE_URL is required to access the database.");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({ connectionString, connectionTimeoutMillis: 15000, idleTimeoutMillis: 60000, keepAlive: true });
   client = new PrismaClient({ adapter });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.narraPrisma = client;
-  }
+  // Route handlers and RSC bundles may each load this module. Share one pool
+  // across them in production too, not only across development hot reloads.
+  globalForPrisma.narraPrisma = client;
 
   return client;
 }
