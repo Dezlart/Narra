@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createDraftAction, createRevisionAction, deleteDraftAction } from "./actions";
-export function CreateDraftButton({ articleId }: { articleId?: string }) {
+export function CreateDraftButton({ articleId, label }: { articleId?: string; label?: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false), [error, setError] = useState("");
   return <div><Button disabled={pending} onClick={async () => {
@@ -13,7 +13,7 @@ export function CreateDraftButton({ articleId }: { articleId?: string }) {
       if (!result.ok) { setError(result.message); setPending(false); return; }
       router.push(`/editor/${result.value.articleId}`);
     } catch { setError("Не удалось создать черновик. Попробуйте снова."); setPending(false); }
-  }}>{pending ? "Создаём черновик…" : articleId ? "Создать новую версию" : "Создать черновик"}</Button>{error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}</div>;
+  }}>{pending ? "Создаём черновик…" : label ?? (articleId ? "Создать новую версию" : "Создать черновик")}</Button>{error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}</div>;
 }
 export function DeleteDraftButton({ articleId, revisionId, editVersion, published }: { articleId: string; revisionId: string; editVersion: number; published: boolean }) {
   const router = useRouter();

@@ -123,6 +123,7 @@ model Article {
 }
 
 model ArticleRevision {
+  // SQL migration enforces at most one DRAFT or PENDING per article (partial index).
   id              String                @id @default(cuid())
   articleId       String
   title           String                @default("")

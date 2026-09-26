@@ -6,7 +6,8 @@ import { requireAuth } from "@/lib/auth/guards";
 import { AuthorizationError } from "@/features/auth/permissions";
 import { ArticleError } from "./errors";
 import { deleteDraftSchema, idSchema, saveDraftSchema, type DraftView } from "./schemas";
-import { documentImages, emptyDocument, imageSourcePattern, type RichNode } from "./content";
+import { emptyDocument, type RichNode } from "./content";
+import { validateImageReferences } from "./image-references";
 
 type Tx = Prisma.TransactionClient;
 const revisionInclude = { tags: { include: { tag: true } } } satisfies Prisma.ArticleRevisionInclude;
@@ -52,10 +53,10 @@ export async function createDraftRevision(input: unknown, requestHeaders?: Heade
     if (existing?.id === article.publishedRevisionId) throw new ArticleError("LOCKED", "Опубликованную версию редактировать нельзя.");
     if (existing) return view(articleId, !!article.publishedRevisionId, existing);
     const latest = await tx.articleRevision.findFirst({ where: { articleId }, orderBy: { version: "desc" }, include: revisionInclude });
-    const source = article.publishedRevisionId
+    const source = latest?.status === "REJECTED" ? latest : article.publishedRevisionId
       ? await tx.articleRevision.findUniqueOrThrow({ where: { id: article.publishedRevisionId }, include: revisionInclude }) : latest;
     if (!source) throw new ArticleError("LOCKED", "Нет исходной версии.");
-    if (article.publishedRevisionId && source.status !== "APPROVED") throw new ArticleError("LOCKED", "Опубликованная версия имеет некорректный статус.");
+    if (source.id === article.publishedRevisionId && source.status !== "APPROVED") throw new ArticleError("LOCKED", "Опубликованная версия имеет некорректный статус.");
     const draft = await tx.articleRevision.create({ data: {
       articleId, version: (latest?.version ?? 0) + 1, title: source.title, excerpt: source.excerpt,
       content: source.content as Prisma.InputJsonValue, categoryId: source.categoryId, coverImage: source.coverImage,
@@ -75,14 +76,7 @@ export async function updateArticleDraft(input: unknown, requestHeaders?: Header
     if (!draft) throw new ArticleError("LOCKED", "Эта версия больше не редактируется.");
     if (draft.editVersion !== editVersion) throw new ArticleError("CONFLICT", "Черновик изменён в другой вкладке. Ваш текст сохранён в редакторе. Скачайте копию перед перезагрузкой.");
     if (patch.categoryId && !await tx.category.findUnique({ where: { id: patch.categoryId } })) throw new ArticleError("LOCKED", "Выберите существующую категорию.");
-    const sources = [...(patch.content ? documentImages(patch.content) : []), ...(patch.coverImage ? [patch.coverImage] : [])];
-    const imageIds = new Set<string>();
-    for (const src of sources) {
-      const match = imageSourcePattern.exec(src);
-      if (!match || match[1] !== articleId) throw new ArticleError("INVALID_IMAGE", "Изображение не принадлежит статье.");
-      imageIds.add(match[2]);
-    }
-    if (imageIds.size && await tx.articleImage.count({ where: { articleId, id: { in: [...imageIds] } } }) !== imageIds.size) throw new ArticleError("INVALID_IMAGE", "Изображение не найдено.");
+    await validateImageReferences(tx, articleId, patch);
     const { tags, content, ...fields } = patch;
     const changed = await tx.articleRevision.updateMany({ where: { id: revisionId, articleId, status: "DRAFT", editVersion },
       data: { ...fields, ...(content ? { content: content as Prisma.InputJsonValue } : {}), editVersion: { increment: 1 } } });

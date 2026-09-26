@@ -29,6 +29,6 @@ export const signInSchema = z.object({
 
 /** Only implemented internal destinations; rejects protocol-relative/encoded URLs. */
 export function safeReturnTo(value: unknown): string {
-  return typeof value === "string" && (["/", "/dashboard", "/dashboard/settings", "/dashboard/articles", "/editor/new"].includes(value) || /^\/editor\/[a-zA-Z0-9_-]{1,80}$/.test(value))
+  return typeof value === "string" && (["/", "/dashboard", "/dashboard/settings", "/dashboard/articles", "/editor/new", "/admin/moderation"].includes(value) || /^\/(?:editor|dashboard\/articles|admin\/moderation)\/[a-zA-Z0-9_-]{1,80}$/.test(value))
     ? value : "/dashboard";
 }

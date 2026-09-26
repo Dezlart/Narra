@@ -7,5 +7,7 @@ Keep application actions, validation, services, and database queries with their 
 Presentation demo content lives in `src/components/home/demo-content.ts` and must
 not be imported by services. PHASE 3 adds `articles`: draft services/queries,
 strict content validation, Tiptap UI/autosave, private Blob images and a safe React renderer.
-Every private mutation authorizes inside its service. Moderation and social features
-remain outside the current phase.
+Every private mutation authorizes inside its service. PHASE 4 adds `moderation`:
+submission/review services, publication validation, bounded queue queries,
+read-only preview and snapshot-scoped private images. Public feeds and social
+features remain out of scope.

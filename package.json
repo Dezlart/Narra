@@ -22,6 +22,7 @@
     "db:status": "prisma migrate status",
     "postinstall": "prisma generate",
     "test:articles:integration": "vitest run tests/articles.integration.test.ts",
+    "test:moderation:integration": "vitest run tests/moderation.integration.test.ts",
     "db:seed": "prisma db seed"
   },
   "dependencies": {

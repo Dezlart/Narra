@@ -1,6 +1,8 @@
 "use client";
 import { useCallback, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Save, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { inputClass } from "@/components/ui/form-field";
@@ -10,9 +12,12 @@ import { ImageUpload } from "./image-upload";
 import { useAutosave, useUnsavedChanges } from "./use-autosave";
 import { tagNameSchema, type DraftView } from "./schemas";
 import type { RichNode } from "./content";
+import { submitArticleAction } from "@/features/moderation/actions";
 
 export function ArticleEditor({ initial, categories, uploadEnabled }: { initial: DraftView; categories: { id: string; name: string }[]; uploadEnabled: boolean }) {
-  const { fields, change, save, dirty, status, message } = useAutosave(initial);
+  const router = useRouter();
+  const { fields, change, save, flush, dirty, status, message } = useAutosave(initial);
+  const [submitting, setSubmitting] = useState(false), [submissionError, setSubmissionError] = useState("");
   const [tag, setTag] = useState(""), [tagError, setTagError] = useState(""), [uploading, setUploading] = useState(false);
   useUnsavedChanges(dirty || uploading || !!tag);
   const changeContent = useCallback((content: RichNode) => change("content", content), [change]);
@@ -22,21 +27,37 @@ export function ArticleEditor({ initial, categories, uploadEnabled }: { initial:
     if (fields.tags.length >= 8 && !fields.tags.includes(result.data)) { setTagError("Не более 8 тегов."); return; }
     change("tags", [...new Set([...fields.tags, result.data])]); setTag(""); setTagError("");
   }
+  async function submit() {
+    if (submitting || uploading) return;
+    if (tag.trim()) { setSubmissionError("Добавьте введённый тег кнопкой «+» или очистите поле перед отправкой."); return; }
+    if (!window.confirm("После отправки эта версия будет недоступна для редактирования до решения модератора. Отправить?")) return;
+    setSubmitting(true); setSubmissionError("");
+    try {
+      const editVersion = await flush();
+      if (editVersion === null) { setSubmissionError("Отправка остановлена: сначала устраните ошибку сохранения или конфликт."); setSubmitting(false); return; }
+      const result = await submitArticleAction({ articleId: initial.articleId, revisionId: initial.revisionId, editVersion });
+      if (!result.ok) { setSubmissionError(result.message); setSubmitting(false); return; }
+      router.push(`/dashboard/articles/${initial.articleId}`);
+    } catch { setSubmissionError("Нет подтверждения отправки. Текст остаётся здесь; проверьте статус статьи перед повторной попыткой."); setSubmitting(false); }
+  }
   const statusText = status === "saving" ? "Сохраняем…" : status === "conflict" ? "Конфликт сохранения" : status === "error" ? "Ошибка сохранения" : dirty ? "Есть изменения…" : "Сохранено";
   return <main id="main-content" tabIndex={-1} className="page-container pb-20">
     <PrivatePageLifecycle />
     <div className="sticky top-0 z-10 -mx-1 mb-10 flex flex-wrap items-center justify-between gap-3 border-b border-border bg-background/95 px-1 py-4 backdrop-blur-sm">
-      <a href="/dashboard/articles" className="inline-flex min-h-11 items-center gap-2 text-sm"><ArrowLeft className="size-4" /> Мои статьи</a>
+      <Link href="/dashboard/articles" className="inline-flex min-h-11 items-center gap-2 text-sm"><ArrowLeft className="size-4" /> Мои статьи</Link>
       <div className="flex flex-wrap items-center gap-3"><span role="status" aria-live="polite" className={`text-xs ${status === "error" || status === "conflict" ? "text-destructive" : "text-muted-foreground"}`}>{statusText}</span>
-        <Button size="sm" onClick={() => void save()} disabled={!dirty || status === "saving" || status === "conflict"}><Save /> Сохранить</Button></div>
+        <Button size="sm" onClick={() => void save()} disabled={submitting || !dirty || status === "saving" || status === "conflict"}><Save /> Сохранить</Button>
+        <Button size="sm" variant="outline" onClick={() => void submit()} disabled={submitting || uploading || status === "conflict"}>{submitting ? "Сохраняем и отправляем…" : "Отправить на модерацию"}</Button></div>
     </div>
     <div className="mx-auto max-w-[52rem]">
+      {submissionError && <p role="alert" className="mb-6 rounded-md border border-destructive/40 p-4 text-sm text-destructive">{submissionError}</p>}
       <div className="mb-8 flex flex-wrap items-center gap-3"><span className="eyebrow rounded-sm bg-accent px-3 py-2">Черновик · версия {initial.version}</span><p className="text-xs text-muted-foreground">Виден только вам</p></div>
       {initial.published && <p className="mb-6 rounded-md border border-border bg-muted p-4 text-sm">Вы редактируете новую версию. Опубликованный материал остаётся неизменным.</p>}
       {message && <div role="alert" className="mb-6 space-y-3 rounded-md border border-destructive/40 p-4 text-sm text-destructive"><p>{message}</p>
         <Button variant="outline" onClick={() => { const url = URL.createObjectURL(new Blob([JSON.stringify(fields, null, 2)], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = "narra-draft-backup.json"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }}><Download /> Скачать копию текста</Button>
         {status === "conflict" && <Button variant="outline" className="ml-2" onClick={() => { if (window.confirm("Загрузить версию с сервера? Несохранённые изменения будут потеряны. Сначала скачайте копию.")) window.location.reload(); }}>Загрузить версию с сервера</Button>}
       </div>}
+      <fieldset disabled={submitting} className="min-w-0">
       <div className="mb-6 space-y-2"><label htmlFor="article-title" className="eyebrow text-muted-foreground">Заголовок</label>
         <textarea id="article-title" rows={2} maxLength={180} placeholder="Начните с хорошего заголовка" value={fields.title} onChange={(e) => change("title", e.target.value)} className="w-full resize-y border-0 bg-transparent font-editorial text-3xl leading-tight tracking-tight placeholder:text-muted-foreground/55 sm:text-5xl" /></div>
       <div className="mb-8 space-y-2"><label htmlFor="article-excerpt" className="eyebrow text-muted-foreground">Краткое описание</label><textarea id="article-excerpt" rows={3} maxLength={500} placeholder="О чём эта история и почему её стоит прочитать?" value={fields.excerpt} onChange={(e) => change("excerpt", e.target.value)} className={`${inputClass} resize-y bg-transparent leading-relaxed`} /></div>
@@ -49,7 +70,8 @@ export function ArticleEditor({ initial, categories, uploadEnabled }: { initial:
         {!!fields.tags.length && <ul aria-label="Теги статьи" className="flex flex-wrap gap-2">{fields.tags.map((value) => <li key={value}><button type="button" onClick={() => change("tags", fields.tags.filter((v) => v !== value))} className="flex min-h-10 items-center gap-2 rounded-md bg-muted px-3 text-sm" aria-label={`Удалить тег ${value}`}>{value}<X className="size-3" /></button></li>)}</ul>}
       </section>
       <h2 className="eyebrow mb-3 text-muted-foreground">Ваша история</h2>
-      <TiptapEditor initialContent={initial.content} onChange={changeContent} articleId={initial.articleId} uploadEnabled={uploadEnabled} uploading={uploading} onBusy={setUploading} />
+      <TiptapEditor initialContent={initial.content} onChange={changeContent} articleId={initial.articleId} uploadEnabled={uploadEnabled} uploading={uploading} onBusy={setUploading} disabled={submitting} />
+      </fieldset>
       <p className="mt-5 text-xs leading-relaxed text-muted-foreground">Изменения сохраняются автоматически. Черновик можно закрыть после отметки «Сохранено».</p>
     </div>
   </main>;

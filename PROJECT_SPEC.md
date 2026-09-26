@@ -1,9 +1,58 @@
 # Narra
 
-> Текущий этап: PHASE 3 — Articles, Rich-Text Editor & Drafts. PHASE 1–2 завершены.
-> PHASE 4 и последующие фазы требуют отдельной команды.
+> Текущий этап: PHASE 4 — Moderation & Publishing. PHASE 1–3 завершены.
+> PHASE 5 и последующие фазы требуют отдельной команды.
 > Перед началом каждой новой фазы читать этот файл целиком. Решения реализации
 > ниже уточняют концептуальные модели исходной спецификации, не расширяя scope.
+
+## Принятые решения PHASE 4 (26 сентября 2026)
+
+- Revision: DRAFT → PENDING → APPROVED либо REJECTED. Отправленный/рассмотренный
+  контент immutable. Исправление создаёт новую DRAFT с новым version, editVersion=0
+  и пустыми submitted/review metadata. Последняя REJECTED revision копируется
+  даже при существующей публикации; иначе источником служит current published
+  approved revision. Существующий DRAFT переиспользуется, PENDING блокирует новый.
+- ArticleStatus остаётся DRAFT/PUBLISHED/ARCHIVED. До первой публикации Article
+  остаётся DRAFT при pending/rejection; UI показывает status revision. После первой
+  публикации Article остаётся PUBLISHED при draft/pending/rejected update.
+  Только publishedRevisionId определяет публичный snapshot, не последняя revision.
+- Submit принимает только articleId/revisionId/editVersion. Под блокировкой Article
+  перечитывает snapshot и проверяет owner/ban/DRAFT/версию, категорию, теги и image
+  references. Title 5–180, excerpt 10–500 символов после trim; category обязательна.
+  Body: >=40 непробельных символов либо inline image; cover/tags optional.
+  Используется Tiptap validator PHASE 3, без второй несовместимой схемы документа.
+- Submit атомарно ставит PENDING/submittedAt, увеличивает editVersion и очищает
+  review metadata. UI замораживает ввод, дожидается in-flight autosave, сохраняет
+  последующие изменения и отправляет подтверждённую editVersion. При save error
+  или conflict отправка останавливается.
+- Approve/reject требуют requireModerator (MODERATOR/ADMIN). Транзакция повторно
+  проверяет role/ban под User FOR SHARE, затем Article FOR UPDATE и условно
+  обновляет только PENDING. Конкурентные решения дают одного победителя, повторный
+  review запрещён. Порядок блокировок такой же, как у автора: User → Article.
+  Отдельного запрета самопроверки MODERATOR/ADMIN нет: действует заданная модель ролей.
+- Approval одной транзакцией ставит APPROVED/reviewedAt/reviewedById, очищает reason
+  и переключает publishedRevisionId/status=PUBLISHED. publishedAt — дата первой
+  публикации, она сохраняется при обновлениях; updatedAt меняется. Предыдущая
+  APPROVED revision остаётся в истории. Reject сохраняет trim причину 5–2000
+  символов и не меняет public pointer/status/publishedAt Article.
+- Миграция 20260925230000_moderation добавляет partial UNIQUE по articleId для
+  DRAFT/PENDING. Старый DRAFT index и исходные SQL CHECK/FK сохранены. Перед deploy
+  проверяется отсутствие конфликтующих revisions, данные не исправляются молча.
+  Новые таблицы/enums/review fields не нужны: metadata, reviewer relation и индекс
+  status/submittedAt уже существуют. SQL partial index поддерживается отдельно от DSL.
+- /admin/moderation — очередь PENDING по submittedAt ASC, 20 на страницу;
+  /admin/moderation/[revisionId] — read-only snapshot и решение. USER получает
+  404 на страницах, guest/ban — login; actions/queries отдельно проверяют роль.
+  /dashboard/articles/[id] — собственная история по 20 версий, причины/даты и
+  отметка текущей опубликованной версии. Исторические revisions не редактируются.
+- Модератор читает private images через отдельный no-store endpoint
+  /api/moderation/revisions/[revisionId]/images/[imageId]. Проверяются роль и
+  наличие ссылки именно в submitted/reviewed snapshot. DRAFT и произвольные
+  ArticleImage не открываются. Авторские image routes остаются owner-only,
+  upload permissions не расширены. Без Blob config текстовая модерация работает.
+- Новых зависимостей и постоянных proxy/provider-specific настроек нет.
+  Notifications, public feed/article pages и управление пользователями вне PHASE 4.
+  VPN остаётся включённым; временный QA tunnel к той же Neon не меняет .env.
 
 ## Принятые решения PHASE 3 (25 сентября 2026)
 
@@ -1482,7 +1531,7 @@ Production preparation:
 
 ---
 
-# CURRENT TASK
+# CURRENT TASK (историческое задание PHASE 1)
 
 Сейчас работаем **ТОЛЬКО НАД PHASE 1**.
 

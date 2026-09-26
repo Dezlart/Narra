@@ -12,33 +12,48 @@ export function useAutosave(initial: DraftView) {
   const [acknowledged, setAcknowledged] = useState(JSON.stringify(initialFields));
   const [status, setStatus] = useState<"saved" | "saving" | "error" | "conflict">("saved");
   const [message, setMessage] = useState("");
-  const inFlight = useRef(false), conflict = useRef(false);
+  const inFlight = useRef<Promise<boolean> | null>(null), conflict = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const save = useCallback(async function performSave() {
-    if (inFlight.current || conflict.current) return;
+  const save = useCallback(function performSave(): Promise<boolean> {
+    if (conflict.current) return Promise.resolve(false);
+    if (inFlight.current) return inFlight.current;
     const snapshot = current.current;
     const patch = changedFields(snapshot, saved.current);
-    if (!Object.keys(patch).length) return;
-    inFlight.current = true; setStatus("saving"); setMessage("");
-    let succeeded = false;
-    try {
-      const response = await saveDraftAction({ articleId: initial.articleId, revisionId: initial.revisionId, editVersion: version.current, patch });
-      if (!response.ok) {
-        conflict.current = response.conflict;
-        setStatus(response.conflict ? "conflict" : "error"); setMessage(response.message);
-      } else {
-        version.current = response.value.editVersion; saved.current = snapshot;
-        setAcknowledged(JSON.stringify(snapshot)); setStatus("saved"); succeeded = true;
+    if (!Object.keys(patch).length) return Promise.resolve(true);
+    setStatus("saving"); setMessage("");
+    const work = async () => {
+      let succeeded = false;
+      try {
+        const response = await saveDraftAction({ articleId: initial.articleId, revisionId: initial.revisionId, editVersion: version.current, patch });
+        if (!response.ok) {
+          conflict.current = response.conflict;
+          setStatus(response.conflict ? "conflict" : "error"); setMessage(response.message);
+        } else {
+          version.current = response.value.editVersion; saved.current = snapshot;
+          setAcknowledged(JSON.stringify(snapshot)); setStatus("saved"); succeeded = true;
+        }
+      } catch { setStatus("error"); setMessage("Нет связи с сервером. Текст остаётся в редакторе. Повторите сохранение или скачайте копию."); }
+      finally {
+        inFlight.current = null;
+        if (succeeded && Object.keys(changedFields(current.current, saved.current)).length) {
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = setTimeout(() => void performSave(), 1300);
+        }
       }
-    } catch { setStatus("error"); setMessage("Нет связи с сервером. Текст остаётся в редакторе. Повторите сохранение или скачайте копию."); }
-    finally {
-      inFlight.current = false;
-      if (succeeded && Object.keys(changedFields(current.current, saved.current)).length) {
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => void performSave(), 1300);
-      }
-    }
+      return succeeded;
+    };
+    inFlight.current = Promise.resolve().then(work);
+    return inFlight.current;
   }, [initial.articleId, initial.revisionId]);
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current);
+    if (inFlight.current && !await inFlight.current) return null;
+    while (Object.keys(changedFields(current.current, saved.current)).length) {
+      if (!await save()) return null;
+    }
+    if (timer.current) clearTimeout(timer.current);
+    return conflict.current ? null : version.current;
+  }, [save]);
   const change = useCallback(<K extends keyof DraftFields>(key: K, value: DraftFields[K]) => {
     current.current = { ...current.current, [key]: value };
     setFields(current.current);
@@ -47,7 +62,7 @@ export function useAutosave(initial: DraftView) {
   }, [save]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const dirty = JSON.stringify(fields) !== acknowledged;
-  return { fields, change, save, dirty, status, message };
+  return { fields, change, save, flush, dirty, status, message };
 }
 
 export function useUnsavedChanges(dirty: boolean) {

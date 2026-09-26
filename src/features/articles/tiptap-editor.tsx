@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TiptapImage from "@tiptap/extension-image";
@@ -12,8 +12,8 @@ import { imageSourcePattern, safeLink, type RichNode } from "./content";
 const SafeImage = TiptapImage.extend({
   parseHTML() { return [{ tag: "img[src]", getAttrs: (element) => imageSourcePattern.test(element.getAttribute("src") ?? "") ? null : false }]; },
 });
-export function TiptapEditor({ initialContent, onChange, articleId, uploadEnabled, uploading, onBusy }: {
-  initialContent: RichNode; onChange: (content: RichNode) => void; articleId: string; uploadEnabled: boolean; uploading: boolean; onBusy: (busy: boolean) => void;
+export function TiptapEditor({ initialContent, onChange, articleId, uploadEnabled, uploading, onBusy, disabled = false }: {
+  initialContent: RichNode; onChange: (content: RichNode) => void; articleId: string; uploadEnabled: boolean; uploading: boolean; onBusy: (busy: boolean) => void; disabled?: boolean;
 }) {
   const [linkOpen, setLinkOpen] = useState(false), [url, setUrl] = useState(""), [linkError, setLinkError] = useState("");
   const editor = useEditor({
@@ -26,6 +26,7 @@ export function TiptapEditor({ initialContent, onChange, articleId, uploadEnable
     // React Server Actions serialization (otherwise Flight sends temporary refs).
     onUpdate: ({ editor }) => onChange(JSON.parse(JSON.stringify(editor.getJSON())) as RichNode),
   });
+  useEffect(() => { editor?.setEditable(!disabled); }, [editor, disabled]);
   const selectedState = useEditorState({ editor, selector: ({ editor }) => editor ? {
     bold: editor.isActive("bold"), italic: editor.isActive("italic"), bullet: editor.isActive("bulletList"), ordered: editor.isActive("orderedList"), quote: editor.isActive("blockquote"), code: editor.isActive("codeBlock"), link: editor.isActive("link"),
     heading: [1, 2, 3].find((level) => editor.isActive("heading", { level })) ?? 0,

@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAuth } from "./server";
 import { getPrisma } from "@/lib/prisma";
 import { assertActiveUser, assertRole, AuthorizationError } from "@/features/auth/permissions";
@@ -56,4 +56,10 @@ export async function requirePageUser(returnTo: string) {
     if (error.code === "BANNED") query.set("error", "banned");
     redirect(`/login?${query}`);
   }
+}
+
+export async function requirePageModerator(returnTo: string) {
+  const user = await requirePageUser(returnTo);
+  if (user.role !== "MODERATOR" && user.role !== "ADMIN") notFound();
+  return user;
 }
