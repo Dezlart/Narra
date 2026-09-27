@@ -1,9 +1,60 @@
 # Narra
 
-> Текущий этап: PHASE 4 — Moderation & Publishing. PHASE 1–3 завершены.
-> PHASE 5 и последующие фазы требуют отдельной команды.
+> Текущий этап: PHASE 5 — Public Content & Discovery. PHASE 1–4 завершены.
+> PHASE 6 и последующие фазы требуют отдельной команды.
 > Перед началом каждой новой фазы читать этот файл целиком. Решения реализации
 > ниже уточняют концептуальные модели исходной спецификации, не расширяя scope.
+
+## Принятые решения PHASE 5 (27 сентября 2026)
+
+- `features/public-content` — общий серверный модуль чтения. Все поверхности,
+  включая search, sitemap и изображения, требуют Article=PUBLISHED, ненулевые
+  publishedRevisionId/publishedAt/slug, текущую revision=APPROVED и активного
+  (не заблокированного) автора. Последняя revision никогда не используется.
+  Поля содержания, категории и теги берутся только из publishedRevision.
+- Главная читает PostgreSQL. Самая новая статья на первой странице выделена
+  и не повторяется в сетке. Публикации сортируются publishedAt DESC/id DESC;
+  12 на страницу + одна для hasNext, SQL offset/limit, page ограничен 1000.
+  Некорректный page становится 1. Никаких fake engagement или demo articles.
+- Карточки не выбирают полный JSON/приватные metadata. `readingMinutes` хранится
+  на revision, рассчитывается при approval из валидного текста (200 слов/мин,
+  минимум 1). Миграция 20260926120000_public_reading добавляет поле/CHECK и
+  заполняет существующие APPROVED, не меняя контент и publication pointers.
+- Маршруты: /articles/[slug], /categories, /categories/[slug], /tags/[slug],
+  /search; существующий /profile/[username] дополнен пагинированными публикациями.
+  Категории — существующий справочник; user-generated теги без текущей публичной
+  публикации не раскрываются (404). Профили без статей имеют empty state.
+- Поиск по approved title/excerpt и имени/username автора через Prisma contains
+  insensitive. Trim/нормализация пробелов, максимум 120 символов; длинный запрос
+  даёт объяснение без DB search, пустой — приглашение к вводу. %, _ и backslash
+  экранируются как литералы LIKE; SQL параметризован. Full-text engine не добавлен.
+- Общий RichText PHASE 3–4 повторно валидирует JSON, создаёт React elements,
+  не исполняет HTML. Public image mapper меняет только собственные image URLs.
+  Длинный код прокручивается внутри pre; ширина текста 736 px.
+- /api/public/articles/[articleId]/images/[imageId] проверяет публичную Article,
+  принадлежность ArticleImage и точную ссылку в cover/content текущей revision.
+  Draft-only/старые, более не используемые изображения возвращают 404. Private
+  Blob читается сервером, pathname/token не выдаются. Ответы no-store/nosniff,
+  next/image unoptimized; optimizer запрещён для API URL через localPatterns,
+  чтобы его cache не обходил последующую смену видимости. Upload/owner/moderator
+  endpoints сохраняют прежние ограничения. Cloud E2E требует реальных credentials.
+- Страницы используют request-time SSR (`connection`), без межзапросного Data Cache.
+  React cache дедуплицирует metadata/body только внутри запроса. Approval action
+  дополнительно revalidatePath('/', 'layout') сбрасывает Router Cache инициатора.
+  Следующий запрос гостя получает новую публикацию; уже открытая вкладка обновляется
+  навигацией/refresh, live push не добавлен. Sitemap/robots/image routes dynamic.
+- Metadata берётся из public snapshot; search noindex/follow. Опциональный SITE_URL
+  задаёт реальный HTTPS origin без path/credentials. Без него нет выдуманных canonical,
+  OG image URL и sitemap URL; sitemap пуст, robots запрещает индексирование среды.
+  При настроенном origin sitemap содержит главную, справочник категорий, публичные
+  статьи/теги и профили с публикациями. Ограничение первого релиза: до 10000 статей,
+  10000 тегов, 10000 авторов и 200 категорий; перед ростом добавить sitemap sharding.
+  lastModified статьи основан на review текущей published revision, не draft update.
+- Зависимости не добавлены; auth/editor/moderation архитектура сохранена.
+  Социальные функции, подписки, уведомления и аналитика не реализуются в PHASE 5.
+
+JSONPath backfill сверён с [официальной документацией PostgreSQL](https://www.postgresql.org/docs/17/functions-json.html).
+Next.js Metadata/connection/sitemap/image APIs проверены по установленным docs 16.3.6.
 
 ## Принятые решения PHASE 4 (26 сентября 2026)
 

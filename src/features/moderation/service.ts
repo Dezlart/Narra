@@ -7,6 +7,7 @@ import { assertActiveUser, assertRole } from "@/features/auth/permissions";
 import { lockOwnedArticle } from "@/features/articles/service";
 import { ArticleError } from "@/features/articles/errors";
 import { validateImageReferences } from "@/features/articles/image-references";
+import { readingMinutes } from "@/features/articles/reading-time";
 import { publicationSchema, rejectSchema, reviewSchema, submitSchema } from "./schemas";
 
 const options = { maxWait: 10000, timeout: 25000 };
@@ -57,7 +58,8 @@ async function reviewRevision(revisionId: string, decision: "APPROVED" | "REJECT
     if (decision === "APPROVED") await validateSnapshot(tx, revision);
     const now = new Date();
     const changed = await tx.articleRevision.updateMany({ where: { id: revisionId, articleId: article.id, status: "PENDING" },
-      data: { status: decision, reviewedAt: now, reviewedById: actor.id, rejectionReason: reason } });
+      data: { status: decision, reviewedAt: now, reviewedById: actor.id, rejectionReason: reason,
+        ...(decision === "APPROVED" ? { readingMinutes: readingMinutes(revision.content) } : {}) } });
     if (changed.count !== 1) throw new ArticleError("CONFLICT", "Другой модератор уже принял решение.");
     await tx.article.update({ where: { id: article.id }, data: decision === "APPROVED"
       ? { status: "PUBLISHED", publishedRevisionId: revision.id, publishedAt: article.publishedAt ?? now, slug: article.slug || `story-${randomUUID()}`, updatedAt: now }

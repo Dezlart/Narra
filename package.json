@@ -23,6 +23,7 @@
     "postinstall": "prisma generate",
     "test:articles:integration": "vitest run tests/articles.integration.test.ts",
     "test:moderation:integration": "vitest run tests/moderation.integration.test.ts",
+    "test:public:integration": "vitest run tests/public-content.integration.test.ts",
     "db:seed": "prisma db seed"
   },
   "dependencies": {

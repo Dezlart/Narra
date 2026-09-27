@@ -1,7 +1,7 @@
 import { createElement, Fragment, type ReactNode } from "react";
-import Image from "next/image";
+import { ContentImage } from "./content-image";
 import { validDocument, type RichNode } from "./content";
-/** Safe React renderer prepared for PHASE 5; never interprets HTML strings. */
+/** Shared author/moderator/public renderer; never interprets HTML strings. */
 export function RichText({ content, imageUrl = (source) => source }: { content: unknown; imageUrl?: (source: string) => string }) {
   if (!validDocument(content)) return <p>Не удалось отобразить содержимое.</p>;
   function render(node: RichNode, index: number): ReactNode {
@@ -14,7 +14,7 @@ export function RichText({ content, imageUrl = (source) => source }: { content: 
       }
       return <Fragment key={index}>{text}</Fragment>;
     }
-    if (node.type === "image") return <Image key={index} src={imageUrl(String(node.attrs?.src))} alt={String(node.attrs?.alt ?? "")} width={1200} height={800} unoptimized className="h-auto max-w-full" />;
+    if (node.type === "image") return <ContentImage key={index} src={imageUrl(String(node.attrs?.src))} alt={String(node.attrs?.alt ?? "")} width={1200} height={800} className="h-auto max-w-full" />;
     if (node.type === "hardBreak") return <br key={index} />;
     if (node.type === "horizontalRule") return <hr key={index} />;
     if (node.type === "doc") return <Fragment key={index}>{children}</Fragment>;

@@ -7,9 +7,9 @@ import { Avatar } from "@/features/users/avatar";
 import { SignOutButton } from "@/features/auth/sign-out-button";
 
 const navigation: readonly NavigationItem[] = [
-  { label: "Свежие истории", href: "/#latest" },
-  { label: "В фокусе", href: "/#spotlight" },
-  { label: "О Narra", href: "/#about" },
+  { label: "Главная", href: "/" },
+  { label: "Категории", href: "/categories" },
+  { label: "Поиск", href: "/search" },
 ];
 
 export async function SiteHeader() {

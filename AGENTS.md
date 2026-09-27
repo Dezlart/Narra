@@ -3,9 +3,9 @@
 Read PROJECT_SPEC.md before every development phase. It is the source of truth
 for scope, architecture, security, business rules, and design direction.
 
-PHASE 1–3 are complete. PHASE 4 (Moderation & Publishing) is authorized.
-Do not start PHASE 5 or later without a separate user instruction. Preserve
-existing migrations and article/revision publication constraints. Do not add public feeds/social features.
+PHASE 1–4 are complete. PHASE 5 (Public Content & Discovery) is authorized.
+Do not start PHASE 6 or later without a separate user instruction. Preserve
+existing migrations and article/revision publication constraints. Do not add social features.
 
 Use npm. Preserve strict TypeScript and Server Components by default. Demo
 content belongs exclusively to the presentation layer; it is not a backend.

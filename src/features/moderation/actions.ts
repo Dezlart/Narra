@@ -12,6 +12,8 @@ async function perform<T extends { articleId: string; revisionId: string }>(work
     revalidatePath(`/dashboard/articles/${value.articleId}`);
     revalidatePath("/admin/moderation");
     revalidatePath(`/admin/moderation/${value.revisionId}`);
+    // Public reads are dynamic; also clear this actor's visited router snapshots.
+    revalidatePath("/", "layout");
     return { ok: true as const, value };
   } catch (error) {
     const message = error instanceof ArticleError ? error.message

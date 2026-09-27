@@ -133,6 +133,8 @@ model ArticleRevision {
   categoryId      String?
   version         Int
   editVersion     Int                   @default(0)
+  // Derived from validated content at approval; cards never load the full JSON.
+  readingMinutes  Int                   @default(1)
   status          ArticleRevisionStatus @default(DRAFT)
   rejectionReason String?
   submittedAt     DateTime?
