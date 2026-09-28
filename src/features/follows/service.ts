@@ -1,4 +1,6 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
+import { createNotification } from "@/features/notifications/events";
 import { getPrisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/guards";
 import { followSchema } from "@/features/social/schemas";
@@ -13,7 +15,11 @@ async function setFollowing(input: unknown, desired: boolean, requestHeaders?: H
   return getPrisma().$transaction(async (tx) => {
     await lockSocialUsers(tx, actor.id, target.id);
     const where = { followerId: actor.id, followingId: target.id };
-    if (desired) await tx.follow.createMany({ data: [where], skipDuplicates: true });
+    if (desired) {
+      const created = await tx.follow.createMany({ data: [where], skipDuplicates: true });
+      if (created.count) await createNotification(tx, { recipientId: target.id, actorId: actor.id,
+        type: "NEW_FOLLOWER", eventKey: `follow:${randomUUID()}` });
+    }
     else await tx.follow.deleteMany({ where });
   }, socialTransactionOptions);
 }

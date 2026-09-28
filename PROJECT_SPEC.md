@@ -1,9 +1,63 @@
 # Narra
 
-> Текущий этап: PHASE 6 — Social Features. PHASE 1–5 завершены.
-> PHASE 7 и последующие фазы требуют отдельной команды.
+> Текущий этап: PHASE 7 — Personalized Feed & Notifications. PHASE 1–6 завершены.
+> PHASE 8 и последующие фазы требуют отдельной команды.
 > Перед началом каждой новой фазы читать этот файл целиком. Решения реализации
 > ниже уточняют концептуальные модели исходной спецификации, не расширяя scope.
+
+## Принятые решения PHASE 7 (28 сентября 2026)
+
+- `/following`: requireAuth, один relation query через Follow текущего пользователя
+  и общий publicArticleWhere/cardSelect/toCard. Прежний ArticleCard, 12 на страницу,
+  publishedAt DESC/id DESC, LIMIT+1, page 1–1000. Только publishedRevision.
+- Notification: recipient, nullable actor/article/revision/comment, enum шести типов,
+  eventKey, createdAt, readAt. UNIQUE(recipientId,eventKey). Удаление связанных
+  сущностей обнуляет ссылки, сохраняя историю; удаление recipient каскадное.
+  Нет копий комментария, rejection reason, title или произвольных URL.
+- ARTICLE_APPROVED/ARTICLE_REJECTED автору на решение revision, ключ review:revisionId.
+  NEW_FOLLOWER только при createMany.count=1, ключ follow:UUID на реальный переход;
+  unfollow сохраняет историю, новая подписка создаёт новое событие.
+- ARTICLE_COMMENT только для корня автору Article; COMMENT_REPLY только автору
+  корня. Self-notifications исключены. Ключ comment:commentId и прежний requestId
+  обеспечивают retry. Создание всех событий — в исходной business transaction:
+  ошибка уведомления откатывает mutation, неуспешная mutation не оставляет события.
+- FOLLOWED_AUTHOR_PUBLISHED только при первом approval: до изменения нет ни
+  publishedRevisionId, ни publishedAt. Approved update уведомляет лишь автора.
+  Один параметризованный INSERT SELECT из Follow/активных User, ON CONFLICT DO
+  NOTHING, ключ publication:articleId. Нет загрузки всех followers или N inserts.
+  Получатели определяются snapshot SQL statement публикации: уже завершённый
+  unfollow исключён, ещё не завершённый конкурентный может оставить событие.
+- Заблокированные получатели не получают новых событий. Publication fanout также
+  исключает banned автора. Существующая история при ban не удаляется.
+- User locks социальных транзакций: FOR NO KEY UPDATE вместо FOR UPDATE.
+  Они всё ещё сериализуют actor mutations/ban/role/rate checks, но совместимы с
+  FK KEY SHARE новых notifications и не создают взаимный deadlock у комментаторов.
+  Порядок User → Article и прежние publication constraints сохранены.
+- Queries берут recipient только из requireAuth; ограниченные batch queries
+  отдельно выбирают public titles, собственные reviewed revisions и ID видимых
+  comments. Bodies/email/auth data не выбираются. DTO только text/href/type/time/read.
+  Hidden/deleted/banned comment и недоступная статья дают нейтральный текст без href.
+- `/dashboard/notifications`: 20 записей, preview: 5, createdAt DESC/id DESC.
+  Unread — COUNT WHERE recipientId=current AND readAt IS NULL. Request-time чтение,
+  React cache только в запросе, никакого общего cache персональных данных.
+- Колокольчик с badge 99+, полным accessible count, native details, Tab/Esc/outside
+  close. Мобильная панель ограничена viewport; read state обозначен также текстом.
+- Открытие preview/list не меняет readAt. Явное открытие/mark вызывает защищённую
+  POST action; updateMany ставит readAt только при null, сохраняет его при retry.
+  Mark all ограничен текущим recipient. Переход получает свежий href от сервера.
+- Moderation links ведут в собственную историю на страницу/anchor конкретной
+  revision. Comments ведут к #comments (ответ иногда требует открытия ветки).
+  Публикации используют текущий public snapshot; follows — текущий доступный профиль.
+- revalidatePath('/', 'layout') обновляет инициатора. Остальным события доступны
+  при следующем запросе/навигации/refresh. Нет realtime, polling, email, backfill
+  исторических событий, автоматической очистки или event bus.
+- Миграция 20260928160000_notifications: только enum/table/индексы/FK. Основные
+  индексы recipient/createdAt/id и recipient/readAt, плюс UNIQUE event и nullable
+  FK для cleanup связанных сущностей. Прежние SQL не изменены, пакетов не добавлено.
+
+SQL сверён с [PostgreSQL locking](https://www.postgresql.org/docs/17/explicit-locking.html)
+и [INSERT / ON CONFLICT](https://www.postgresql.org/docs/17/sql-insert.html).
+Next.js Server Actions/revalidatePath — с документацией установленного пакета.
 
 ## Принятые решения PHASE 6 (28 сентября 2026)
 

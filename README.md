@@ -5,10 +5,11 @@
 **PHASE 2 — Authentication, Users & RBAC**, реализована
 **PHASE 3 — Articles, Rich-Text Editor & Drafts** и
 **PHASE 4 — Moderation & Publishing** и **PHASE 5 — Public Content & Discovery**.
-Реализована **PHASE 6 — Social Features**. PHASE 7 не начата.
+Реализованы **PHASE 6 — Social Features** и **PHASE 7 — Personalized Feed & Notifications**.
+PHASE 8 не начата.
 Полная спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md). Перед каждой новой
 фазой сначала прочитайте этот файл.
-Результаты реализации, проверок и оставшиеся настройки: [PHASE6_REPORT.md](PHASE6_REPORT.md).
+Результаты реализации, проверок и оставшиеся настройки: [PHASE7_REPORT.md](PHASE7_REPORT.md).
 
 ## Что есть сейчас
 
@@ -16,7 +17,7 @@
 - shadcn/ui (официальный CLI, Radix Nova, только Button), Lucide.
 - Адаптивная реальная лента, страницы чтения, категории, теги, поиск,
   навигация, состояния загрузки, ошибки и 404.
-- Prisma 7, PostgreSQL, единый ленивый серверный клиент, шесть SQL-миграций.
+- Prisma 7, PostgreSQL, единый ленивый серверный клиент, семь SQL-миграций.
 - Better Auth: регистрация, вход/выход, сессии в БД; публичные профили,
   собственные настройки и серверные guards USER/MODERATOR/ADMIN.
 - Настоящие статьи/черновики, Tiptap, autosave, категории/теги и private Blob images.
@@ -25,6 +26,7 @@
   Демокомпоненты PHASE 1 сохранены как неиспользуемая история дизайна.
 - Лайки, закладки, комментарии с одним уровнем ответов, подписки на авторов;
   реальные счётчики и базовая модерация комментариев.
+- Персональная лента подписок и постоянные уведомления в PostgreSQL.
 
 ## Локальный запуск
 
@@ -173,6 +175,7 @@ npm run test:articles:integration
 npm run test:moderation:integration
 npm run test:public:integration
 npm run test:social:integration
+npm run test:notifications:integration
 ```
 
 `postinstall`, `typecheck` и `build` генерируют Prisma Client. Typecheck сначала
@@ -384,7 +387,7 @@ revision. Уже существующий DRAFT открывается повт�
 Approval новой версии переключает `publishedRevisionId`, сохраняя первый
 `publishedAt` и старую APPROVED revision. Rejection новой версии не скрывает
 старую публикацию. После approval публикация появляется на публичных страницах,
-в ленте, поиске и каталогах. Notifications ещё не создаются.
+в ленте, поиске и каталогах. Notifications создаются в той же транзакции решения.
 
 `npm run test:moderation:integration` запускайте только с development DATABASE_URL.
 Он создаёт свои временные USER/MODERATOR/ADMIN, проверяет настоящий workflow,
@@ -515,7 +518,54 @@ npm run test:social:integration
 через stdin дочернему процессу, не сохраняются. Скриншоты — в игнорируемой
 `.playwright-mcp`. Новые runtime/dev зависимости не установлены.
 
+## Лента подписок и уведомления
+
+`/following` показывает только текущие публичные версии статей авторов ваших
+подписок: 12 на страницу, сначала последние публикации. Новый черновик/модерация
+не меняют карточку до approval. Гость переходит на login с безопасным возвратом.
+
+`/dashboard/notifications` — личная история, 20 записей на страницу. Колокольчик
+в Header показывает количество непрочитанных и preview пяти последних событий.
+Открытие списка или preview не меняет статус. Переход по событию и явная кнопка
+«Отметить прочитанным» сохраняют readAt; «Прочитать все» обновляет только ваши
+непрочитанные записи. Состояние сохраняется в PostgreSQL после logout/restart.
+Для получения новых событий в другой вкладке обновите страницу или перейдите
+на другую: realtime, email и polling не используются.
+
+Модель Notification и enum NotificationType добавлены седьмой миграцией.
+Сервисы `features/notifications` отвечают за events/queries/read actions/UI.
+События создаются в транзакциях существующих moderation/follow/comment services:
+
+| Тип | Получатель и условие |
+| --- | --- |
+| ARTICLE_APPROVED / ARTICLE_REJECTED | Автор, каждое решение по revision |
+| NEW_FOLLOWER | Автор, новая успешная подписка |
+| ARTICLE_COMMENT | Автор статьи, чужой корневой комментарий |
+| COMMENT_REPLY | Автор корня, чужой ответ; второго уведомления статье нет |
+| FOLLOWED_AUTHOR_PUBLISHED | Активные подписчики, только первая публикация Article |
+
+Approved update не повторяет рассылку подписчикам. UNIQUE(recipientId,eventKey)
+защищает события от дублей; comment requestId/follow count/review status защищают
+исходные операции. После unfollow историческое событие остаётся; новый follow
+может создать новое. Bulk публикация — один INSERT SELECT в общей транзакции.
+Для очень большой аудитории потребуется отдельно проектировать durable fanout;
+текущая реализация атомарна и ограничена timeout исходной транзакции.
+
+Notifications не содержат копий контента. Сервер строит безопасные destinations
+по текущим relations; скрытые/удалённые комментарии не раскрываются. Собственное
+решение модерации открывает точную revision в истории; обсуждение — #comments.
+Удаление связанной сущности обнуляет ссылку и оставляет историю. Неактивным
+получателям новые события не создаются; их история сохраняется.
+
+`npm run test:notifications:integration` требует существующую development БД.
+Он создаёт и удаляет только свои fixtures. Опциональный production-browser QA:
+сначала production server с той же БД, затем
+`$env:NARRA_NOTIFICATION_BROWSER_QA = (Resolve-Path tests/notifications.browser.mjs).Path`.
+PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE настраиваются так же, как для social QA.
+Cookies и временные пароли передаются stdin, не сохраняются; screenshots игнорируются.
+Новых credentials и пакетов PHASE 7 не требует, `.env` сохраняется.
+
 ## Следующий этап
 
-Только после отдельной команды: PHASE 7 — персональная лента подписок и уведомления.
-Уведомления, аналитика и полный admin dashboard в PHASE 6 не реализованы.
+Только после отдельной команды: PHASE 8 — reports, administration и analytics
+в согласованном scope. Реализация PHASE 8 не начиналась.

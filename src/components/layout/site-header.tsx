@@ -5,11 +5,13 @@ import type { NavigationItem } from "@/types/navigation";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { Avatar } from "@/features/users/avatar";
 import { SignOutButton } from "@/features/auth/sign-out-button";
+import { NotificationBell } from "@/features/notifications/bell";
 
 const navigation: readonly NavigationItem[] = [
   { label: "Главная", href: "/" },
   { label: "Категории", href: "/categories" },
   { label: "Поиск", href: "/search" },
+  { label: "Подписки", href: "/following" },
 ];
 
 export async function SiteHeader() {
@@ -25,6 +27,7 @@ export async function SiteHeader() {
           {navigation.map((item) => <Link key={item.href} href={item.href} className="nav-link">{item.label}</Link>)}
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
+        {activeUser && <NotificationBell />}
         {activeUser ? <details className="mobile-navigation relative">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md" aria-label="Меню аккаунта">
             <Avatar name={activeUser.name} /><span className="hidden max-w-36 truncate text-sm font-medium sm:inline">{activeUser.name}</span><ChevronDown className="size-4" aria-hidden="true" />
@@ -34,6 +37,7 @@ export async function SiteHeader() {
             <Link href="/dashboard" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Личный кабинет</Link>
             <Link href="/dashboard/articles" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мои статьи</Link>
             <Link href="/dashboard/bookmarks" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Сохранённые статьи</Link>
+            <Link href="/dashboard/notifications" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Уведомления</Link>
             {(activeUser.role === "MODERATOR" || activeUser.role === "ADMIN") && <Link href="/admin/moderation" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Модерация</Link>}
             {(activeUser.role === "MODERATOR" || activeUser.role === "ADMIN") && <Link href="/admin/comments" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Комментарии</Link>}
             <Link href="/dashboard/settings" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Настройки</Link>

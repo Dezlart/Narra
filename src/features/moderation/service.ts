@@ -1,4 +1,5 @@
 import "server-only";
+import { createNotification, createFollowerPublicationNotifications } from "@/features/notifications/events";
 import { randomUUID } from "node:crypto";
 import type { Prisma, UserRole } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
@@ -64,6 +65,12 @@ async function reviewRevision(revisionId: string, decision: "APPROVED" | "REJECT
     await tx.article.update({ where: { id: article.id }, data: decision === "APPROVED"
       ? { status: "PUBLISHED", publishedRevisionId: revision.id, publishedAt: article.publishedAt ?? now, slug: article.slug || `story-${randomUUID()}`, updatedAt: now }
       : { updatedAt: now } });
+    await createNotification(tx, { recipientId: article.authorId, actorId: actor.id,
+      type: decision === "APPROVED" ? "ARTICLE_APPROVED" : "ARTICLE_REJECTED",
+      articleId: article.id, revisionId, eventKey: `review:${revisionId}` });
+    if (decision === "APPROVED" && !article.publishedRevisionId && !article.publishedAt) {
+      await createFollowerPublicationNotifications(tx, article.id, article.authorId);
+    }
     return { articleId: article.id, revisionId, decision };
   }, options);
 }

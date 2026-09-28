@@ -1,4 +1,5 @@
 import "server-only";
+import { createNotification } from "@/features/notifications/events";
 import { getPrisma } from "@/lib/prisma";
 import { requireModerator } from "@/lib/auth/guards";
 import { SocialError } from "@/features/social/errors";
@@ -7,7 +8,7 @@ import { createCommentSchema, commentIdSchema, REPLY_PAGE_SIZE } from "./schemas
 
 export async function createComment(input: unknown, requestHeaders?: Headers) {
   const data = createCommentSchema.parse(input);
-  return withPublicArticle(data.articleId, requestHeaders, async (tx, authorId) => {
+  return withPublicArticle(data.articleId, requestHeaders, async (tx, authorId, article) => {
     const existing = await tx.comment.findUnique({ where: { authorId_requestId: { authorId, requestId: data.requestId } } });
     if (existing) {
       if (existing.articleId !== data.articleId || existing.parentId !== data.parentId || (!existing.deletedAt && existing.content !== data.content)) {
@@ -17,11 +18,13 @@ export async function createComment(input: unknown, requestHeaders?: Headers) {
         OR: [{ createdAt: { lt: existing.createdAt } }, { createdAt: existing.createdAt, id: { lte: existing.id } }] } }) : 0;
       return { id: existing.id, replyPage: Math.max(1, Math.ceil(position / REPLY_PAGE_SIZE)) };
     }
+    let recipientId = article.authorId;
     if (data.parentId) {
       await tx.$queryRaw`SELECT id FROM "Comment" WHERE id = ${data.parentId} FOR UPDATE`;
       const parent = await tx.comment.findFirst({ where: { id: data.parentId, articleId: data.articleId, parentId: null,
-        deletedAt: null, hiddenAt: null, author: { isBanned: false } }, select: { id: true } });
+        deletedAt: null, hiddenAt: null, author: { isBanned: false } }, select: { id: true, authorId: true } });
       if (!parent) throw new SocialError("INVALID_PARENT", "Ответить можно только на доступный основной комментарий этой статьи.");
+      recipientId = parent.authorId;
     }
     const now = new Date();
     // The actor's PostgreSQL row lock serializes these checks across instances.
@@ -34,6 +37,9 @@ export async function createComment(input: unknown, requestHeaders?: Headers) {
       throw new SocialError("RATE_LIMIT", "Подождите немного перед следующим комментарием (не менее 5 секунд, до 10 в минуту).");
     }
     const comment = await tx.comment.create({ data: { ...data, authorId }, select: { id: true } });
+    if (recipientId !== authorId) await createNotification(tx, { recipientId, actorId: authorId,
+      type: data.parentId ? "COMMENT_REPLY" : "ARTICLE_COMMENT", articleId: article.id,
+      commentId: comment.id, eventKey: `comment:${comment.id}` });
     const replyCount = data.parentId ? await tx.comment.count({ where: { articleId: data.articleId, parentId: data.parentId } }) : 0;
     return { id: comment.id, replyPage: Math.max(1, Math.ceil(replyCount / REPLY_PAGE_SIZE)) };
   });

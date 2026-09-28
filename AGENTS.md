@@ -3,10 +3,10 @@
 Read PROJECT_SPEC.md before every development phase. It is the source of truth
 for scope, architecture, security, business rules, and design direction.
 
-PHASE 1–5 are complete. PHASE 6 (Social Features) is authorized.
-Do not start PHASE 7 or later without a separate user instruction. Preserve
+PHASE 1–6 are complete. PHASE 7 (Personalized Feed & Notifications) is authorized.
+Do not start PHASE 8 or later without a separate user instruction. Preserve
 existing migrations and article/revision publication constraints. Do not add
-personalized feeds, notifications, analytics or a full admin dashboard.
+reports, analytics, email/realtime notifications or a full admin dashboard.
 
 Use npm. Preserve strict TypeScript and Server Components by default. Demo
 content belongs exclusively to the presentation layer; it is not a backend.
