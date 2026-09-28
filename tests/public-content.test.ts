@@ -42,8 +42,8 @@ describe("public inputs, metadata and safe rendering", () => {
     expect(html).toContain("&lt;script&gt;"); expect(html).toContain("/api/public/articles/a/images/i"); expect(html).not.toContain("/_next/image");
   });
   it("renders a real card without invented engagement or storage credentials", () => {
-    const html = renderToStaticMarkup(createElement(ArticleCard, { article: { id: "a", slug: "s", title: "История", excerpt: "Описание", publishedAt: new Date(), coverImage: null, category: { name: "Тема", slug: "theme" }, readingMinutes: 2, author: { name: "Автор", username: "author" } } }));
+    const html = renderToStaticMarkup(createElement(ArticleCard, { article: { id: "a", likesCount: 3, commentsCount: 2, slug: "s", title: "История", excerpt: "Описание", publishedAt: new Date(), coverImage: null, category: { name: "Тема", slug: "theme" }, readingMinutes: 2, author: { name: "Автор", username: "author" } } }));
     expect(html).toContain('/articles/s'); expect(html).toContain('/profile/author'); expect(html).toContain("≈ 2 мин чтения");
-    expect(html).not.toContain("<img"); expect(html).not.toMatch(/likes|comments|просмотр/i);
+    expect(html).not.toContain("<img"); expect(html).not.toMatch(/просмотр/i); expect(html).toContain("Лайки: 3"); expect(html).toContain("Комментарии: 2");
   });
 });

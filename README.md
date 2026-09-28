@@ -5,10 +5,10 @@
 **PHASE 2 — Authentication, Users & RBAC**, реализована
 **PHASE 3 — Articles, Rich-Text Editor & Drafts** и
 **PHASE 4 — Moderation & Publishing** и **PHASE 5 — Public Content & Discovery**.
-PHASE 6 не начата.
+Реализована **PHASE 6 — Social Features**. PHASE 7 не начата.
 Полная спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md). Перед каждой новой
 фазой сначала прочитайте этот файл.
-Результаты реализации, проверок и оставшиеся настройки: [PHASE5_REPORT.md](PHASE5_REPORT.md).
+Результаты реализации, проверок и оставшиеся настройки: [PHASE6_REPORT.md](PHASE6_REPORT.md).
 
 ## Что есть сейчас
 
@@ -16,14 +16,15 @@ PHASE 6 не начата.
 - shadcn/ui (официальный CLI, Radix Nova, только Button), Lucide.
 - Адаптивная реальная лента, страницы чтения, категории, теги, поиск,
   навигация, состояния загрузки, ошибки и 404.
-- Prisma 7, PostgreSQL, единый ленивый серверный клиент, пять SQL-миграций.
+- Prisma 7, PostgreSQL, единый ленивый серверный клиент, шесть SQL-миграций.
 - Better Auth: регистрация, вход/выход, сессии в БД; публичные профили,
   собственные настройки и серверные guards USER/MODERATOR/ADMIN.
 - Настоящие статьи/черновики, Tiptap, autosave, категории/теги и private Blob images.
 - Очередь модерации, approve/reject и публикация выбранной revision в БД.
 - Публичные страницы используют исключительно текущую опубликованную версию.
   Демокомпоненты PHASE 1 сохранены как неиспользуемая история дизайна.
-  Социальные функции ещё не реализованы.
+- Лайки, закладки, комментарии с одним уровнем ответов, подписки на авторов;
+  реальные счётчики и базовая модерация комментариев.
 
 ## Локальный запуск
 
@@ -170,6 +171,8 @@ npm test
 npm run test:auth:integration
 npm run test:articles:integration
 npm run test:moderation:integration
+npm run test:public:integration
+npm run test:social:integration
 ```
 
 `postinstall`, `typecheck` и `build` генерируют Prisma Client. Typecheck сначала
@@ -214,15 +217,16 @@ Email и username нормализуются; PostgreSQL обеспечивае�
 
 `/login` создаёт сессию в PostgreSQL на 7 дней с обновлением после суток активности.
 Cookie HttpOnly, SameSite=Lax; Secure при HTTPS. Cookie cache отключён.
-Разрешённые переходы после входа: `/`, `/dashboard`, `/dashboard/settings`,
-`/dashboard/articles`, `/editor/new` и `/editor/[id]` с проверенным идентификатором.
+Разрешённые переходы после входа: `/`, dashboard/settings/articles/bookmarks,
+editor/new и editor/[id], история статьи, admin/moderation/comments,
+публичные `/articles/[slug]` и `/profile/[username]` с проверенными сегментами.
 Внешний callback отвергается Better Auth; UI использует whitelist returnTo.
 Выход удаляет текущую сессию и cookie и выполняет полную навигацию.
 При восстановлении приватной страницы из BFCache она перезагружается.
 
 Публичный `/profile/[username]` выбирает только имя, username, bio, image и createdAt.
 Аватар пока — инициалы; редактирование URL/загрузка изображений отложены.
-Нет email, ролей, идентификаторов сессий, fake articles или статистики.
+Нет email, ролей, идентификаторов сессий, fake articles или фиктивной статистики.
 Несуществующий/заблокированный профиль возвращает HTTP 404.
 `/dashboard/settings` обновляет только имя/username/bio текущего пользователя.
 Строгая Zod schema запрещает лишние поля; ID берётся только из сессии,
@@ -446,7 +450,72 @@ OG cover добавляется при настроенном Blob. Без SITE_
 видимость, поиск, пагинацию, metadata и image authorization в development БД.
 Создаёт и удаляет только свои временные записи. Реальных Blob объектов не имитирует.
 
+## Социальные функции
+
+`features/likes`, `bookmarks`, `comments`, `follows` разделяют queries/services/actions/UI;
+`features/social` содержит общий доступ, транзакции и кнопки. Модели Like и Bookmark
+имеют PK `(userId, articleId)`, Follow — `(followerId, followingId)`. Comment связан
+с Article/author и опциональным parent. Все реакции относятся к постоянной Article:
+правки, ожидание модерации и approval новой revision не удаляют их.
+
+| Маршрут | Социальные функции |
+| --- | --- |
+| `/articles/[slug]` | Like/unlike, save/unsave, комментарии и ответы |
+| `/dashboard/bookmarks` | Только собственные сохранённые публикации |
+| `/profile/[username]` | Follow/unfollow, followers/following |
+| `/admin/comments` | MODERATOR/ADMIN: список, поиск по ID, hide/restore |
+
+Закладки показывают текущую approved revision, по 12 на страницу, сначала последние
+сохранённые. Архивные/недоступные статьи исключены из выдачи, запись закладки остаётся.
+В меню аккаунта и кабинете есть переход к сохранённым статьям.
+
+Комментарий — обычный текст до 2000 символов. HTML не исполняется. Один уровень
+ответов, parent только той же Article; правила проверяются сервисом, FK и trigger.
+Корни показываются по 10, новые первыми; ответы загружаются по кнопке по 5,
+старые первыми. Максимум 1000 страниц. `?commentsPage=2` переключает корни.
+
+Soft delete автором очищает content и ставит deletedAt, сохраняя ветку. Восстановить
+стёртый текст нельзя. Модератор ставит hiddenAt/hiddenById, может отменить скрытие.
+Скрытые/удалённые тексты и имена не передаются в публичный HTML/RSC/JSON; остаётся
+placeholder. Ответы доступны, новые ответы к такому корню запрещены. Скрытые и
+удалённые сообщения, а также сообщения banned, не входят в публичный счётчик.
+Модератор видит сохранённый скрытый текст только в защищённом разделе.
+
+Публичные счётчики берутся из PostgreSQL через filtered _count без отдельных запросов
+на каждую карточку. Banned исключаются также из likes/follow counts. Самоподписка
+запрещена, собственный профиль не показывает кнопку. Списки подписчиков не добавлены.
+
+Сервисы читают пользователя из сессии и повторно проверяют ban/role в транзакции.
+Уникальные ограничения и явные create/delete операции делают Like/Bookmark/Follow
+идемпотентными. Конкурентные отправки комментария используют UUID requestId и
+блокировку строки автора в PostgreSQL; действует интервал 5 секунд, максимум 10
+сообщений в минуту, запрет немедленного повтора текста в той же ветке. Удаление
+не сбрасывает лимит. Новый requestId не позволяет обойти частоту отправки.
+
+UI обновляется после подтверждения Server Action через revalidatePath. Персональные
+состояния не кэшируются между пользователями. Гостевые кнопки ведут на login с
+безопасным возвратом к статье/профилю; returnTo также поддерживает новые private routes.
+Другим открытым вкладкам требуется навигация/refresh; realtime не добавлен.
+
+`test:social:integration` требует development DATABASE_URL, создаёт случайные
+USER/MODERATOR, публикует Article существующим workflow и очищает только свои записи.
+Проверяет конкурентность, права, скрытие, soft delete, пагинацию и смену revision.
+Опциональный браузерный сценарий хранится в `tests/social.browser.mjs`. Запустите
+production server с той же development БД, затем передайте тесту:
+
+```powershell
+$env:NARRA_BROWSER_QA = (Resolve-Path tests/social.browser.mjs).Path
+# Если Playwright не установлен локально, укажите index.mjs доступного runtime:
+$env:PLAYWRIGHT_MODULE = '<absolute path to playwright/index.mjs>'
+$env:CHROMIUM_EXECUTABLE = '<absolute path to chromium executable>'
+npm run test:social:integration
+```
+
+Без NARRA_BROWSER_QA браузерный тест явно skipped. Cookies тестовых сессий передаются
+через stdin дочернему процессу, не сохраняются. Скриншоты — в игнорируемой
+`.playwright-mcp`. Новые runtime/dev зависимости не установлены.
+
 ## Следующий этап
 
-Только после отдельной команды: PHASE 6 — likes, bookmarks, comments, replies,
-follows. Эти функции и фиктивные кнопки к ним не добавлены.
+Только после отдельной команды: PHASE 7 — персональная лента подписок и уведомления.
+Уведомления, аналитика и полный admin dashboard в PHASE 6 не реализованы.

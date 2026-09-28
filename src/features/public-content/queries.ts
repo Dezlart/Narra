@@ -3,27 +3,27 @@ import { cache } from "react";
 import type { Prisma } from "@/generated/prisma/client";
 import { getPrisma } from "@/lib/prisma";
 import { MAX_PAGE, PAGE_SIZE, publicPage, literalContains, searchInput } from "./params";
+import { publicArticleWhere } from "./visibility";
+import { visibleCommentWhere } from "@/features/comments/visibility";
+export { publicArticleWhere } from "./visibility";
 
 // Every public surface, including storage authorization and sitemap, shares this.
 // Banned authors are hidden consistently with the existing public-profile policy.
-export const publicArticleWhere = {
-  status: "PUBLISHED", publishedRevisionId: { not: null },
-  publishedAt: { not: null }, slug: { not: null },
-  publishedRevision: { is: { status: "APPROVED" } }, author: { isBanned: false },
-} satisfies Prisma.ArticleWhereInput;
 const revisionCardSelect = {
   title: true, excerpt: true, coverImage: true, readingMinutes: true,
   category: { select: { name: true, slug: true } },
 } satisfies Prisma.ArticleRevisionSelect;
-const cardSelect = {
+export const cardSelect = {
   id: true, slug: true, publishedAt: true,
   author: { select: { name: true, username: true } },
   publishedRevision: { select: revisionCardSelect },
+  _count: { select: { likes: { where: { user: { isBanned: false } } }, comments: { where: visibleCommentWhere } } },
 } satisfies Prisma.ArticleSelect;
 type CardRow = Prisma.ArticleGetPayload<{ select: typeof cardSelect }>;
-function toCard(row: CardRow) {
+export function toCard(row: CardRow) {
   if (!row.slug || !row.publishedAt || !row.publishedRevision) throw new Error("Invalid public snapshot");
-  return { id: row.id, slug: row.slug, publishedAt: row.publishedAt, author: row.author, ...row.publishedRevision };
+  return { id: row.id, slug: row.slug, publishedAt: row.publishedAt, author: row.author, ...row.publishedRevision,
+    likesCount: row._count.likes, commentsCount: row._count.comments };
 }
 export type PublicArticleCard = ReturnType<typeof toCard>;
 export type PublicFeed = { items: PublicArticleCard[]; page: number; hasNext: boolean };

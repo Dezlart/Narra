@@ -8,6 +8,7 @@ import { getPublishedArticlesByAuthor } from "@/features/public-content/queries"
 import { ArticleFeed, FeedSkeleton } from "@/features/public-content/feed";
 import { publicMetadata } from "@/features/public-content/metadata";
 import type { SearchParams } from "@/features/public-content/params";
+import { ProfileFollow } from "@/features/follows/profile-follow";
 
 type Props = { params: Promise<{ username: string }>; searchParams: SearchParams };
 const profileForPage = cache(async (username: string) => {
@@ -35,6 +36,7 @@ export default async function ProfilePage({ params, searchParams }: Props) {
       <p className="mt-3 break-all text-primary">@{profile.username}</p>
       {profile.bio && <p className="mt-6 whitespace-pre-wrap break-words leading-8">{profile.bio}</p>}
       <p className="mt-5 text-sm text-muted-foreground">В Narra с {new Intl.DateTimeFormat("ru", { month: "long", year: "numeric", timeZone: "UTC" }).format(profile.createdAt)}</p>
+      <Suspense fallback={<p role="status" className="mt-6 text-sm">Загружаем подписки…</p>}><ProfileFollow username={profile.username!} /></Suspense>
     </div>
     <section aria-labelledby="publications-title" className="mt-12 border-t border-border pt-8">
       <h2 id="publications-title" className="section-title mb-8 font-editorial">Публикации</h2>

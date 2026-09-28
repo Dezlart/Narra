@@ -1,6 +1,6 @@
 import { ContentImage } from "@/features/articles/content-image";
 import Link from "next/link";
-import { ArrowUpRight, BookOpen } from "lucide-react";
+import { ArrowUpRight, BookOpen, Heart, MessageCircle } from "lucide-react";
 import { Avatar } from "@/features/users/avatar";
 import type { PublicArticleCard } from "./queries";
 import { publicImageUrl } from "./images";
@@ -27,6 +27,7 @@ export function ArticleCard({ article, featured = false }: { article: PublicArti
       <p className="mt-4 break-words text-sm leading-7 text-muted-foreground">{article.excerpt}</p>
       <div className="mt-6"><AuthorLink author={article.author} /></div>
       <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs leading-6 text-muted-foreground"><PublicationDate date={article.publishedAt} /><span>≈ {article.readingMinutes} мин чтения</span></div>
+      <div className="mt-3 flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="inline-flex items-center gap-1.5" aria-label={`Лайки: ${article.likesCount}`}><Heart className="size-3.5" aria-hidden="true" />{article.likesCount}</span><Link href={`${href}#comments`} className="inline-flex min-h-6 items-center gap-1.5 hover:text-primary" aria-label={`Комментарии: ${article.commentsCount}`}><MessageCircle className="size-3.5" aria-hidden="true" />{article.commentsCount}</Link></div>
     </div>
   </article>;
 }
