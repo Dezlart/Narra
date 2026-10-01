@@ -29,7 +29,7 @@ export async function updateOwnProfile(input: unknown, requestHeaders?: Headers)
 
 export async function getPublicProfile(username: string) {
   return getPrisma().user.findFirst({
-    where: { username, isBanned: false },
+    where: { username },
     select: { name: true, username: true, bio: true, image: true, createdAt: true },
   });
 }

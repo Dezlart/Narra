@@ -14,10 +14,14 @@ import { publicationSchema, rejectSchema, reviewSchema, submitSchema } from "./s
 const options = { maxWait: 10000, timeout: 25000 };
 const snapshotInclude = { tags: { include: { tag: true } } } satisfies Prisma.ArticleRevisionInclude;
 type Snapshot = Prisma.ArticleRevisionGetPayload<{ include: typeof snapshotInclude }>;
-async function validateSnapshot(tx: Prisma.TransactionClient, revision: Snapshot) {
+async function validateSnapshot(tx: Prisma.TransactionClient, revision: Snapshot, submitting = false) {
   const fields = publicationSchema.parse({ title: revision.title, excerpt: revision.excerpt, content: revision.content,
     categoryId: revision.categoryId, coverImage: revision.coverImage, tags: revision.tags.map(({ tag }) => tag.name) });
   if (!await tx.category.findUnique({ where: { id: fields.categoryId } })) throw new ArticleError("LOCKED", "Выберите существующую категорию.");
+  if (submitting) {
+    await tx.$queryRaw`SELECT id FROM "Category" WHERE id = ${fields.categoryId} FOR SHARE`;
+    if (!await tx.category.count({ where: { id: fields.categoryId, archivedAt: null } })) throw new ArticleError("LOCKED", "Выберите активную категорию перед отправкой.");
+  }
   await validateImageReferences(tx, revision.articleId, fields);
 }
 
@@ -30,7 +34,7 @@ export async function submitArticleForModeration(input: unknown, requestHeaders?
     if (!revision || article.publishedRevisionId === revisionId) throw new ArticleError("LOCKED", "Отправить можно только текущий черновик.");
     if (revision.editVersion !== editVersion) throw new ArticleError("CONFLICT", "Черновик изменён. Сохраните копию текста и загрузите актуальную версию перед отправкой.");
     if (await tx.articleRevision.count({ where: { articleId, id: { not: revisionId }, status: { in: ["DRAFT", "PENDING"] } } })) throw new ArticleError("LOCKED", "У статьи уже есть активная версия.");
-    await validateSnapshot(tx, revision);
+    await validateSnapshot(tx, revision, true);
     const now = new Date();
     const changed = await tx.articleRevision.updateMany({ where: { id: revisionId, articleId, status: "DRAFT", editVersion },
       data: { status: "PENDING", submittedAt: now, reviewedAt: null, reviewedById: null, rejectionReason: null, editVersion: { increment: 1 } } });

@@ -6,7 +6,7 @@ export type CommentRow = {
 };
 /** Never return the raw row: hidden/deleted text must not enter HTML or Flight. */
 export function publicCommentView(row: CommentRow, viewerId: string | null) {
-  const status = row.deletedAt ? "deleted" : row.hiddenAt || row.author.isBanned ? "hidden" : "visible";
+  const status = row.deletedAt ? "deleted" : row.hiddenAt ? "hidden" : "visible";
   return {
     id: row.id, parentId: row.parentId, status, createdAt: row.createdAt.toISOString(),
     version: row.updatedAt.toISOString(), content: status === "visible" ? row.content : null,

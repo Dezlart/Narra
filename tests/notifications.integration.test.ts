@@ -202,7 +202,7 @@ describe("persistent personalized feed and notification workflow", () => {
     expect(results).toHaveLength(2);
   }, 120000);
 
-  it("paginates stably, hides archived/banned articles, degrades deleted relations without losing history", async () => {
+  it("paginates stably, hides archived articles but preserves banned author publications, degrades deleted relations without losing history", async () => {
     const stamp = new Date();
     for (let i = 0; i < 12; i++) {
       const a = await db.article.create({ data: { authorId: users[0].id, slug: `qa-notify-${run}-${i}`, revisions: { create: { version: 1, status: "APPROVED", title: `Лента ${i}`, excerpt: "Описание", content: body } } }, include: { revisions: true } });
@@ -217,7 +217,7 @@ describe("persistent personalized feed and notification workflow", () => {
     expect((await getFollowingFeed(2, users[1].headers)).items).toEqual([]);
     await db.article.update({ where: { id: articleId }, data: { status: "PUBLISHED" } });
     await db.user.update({ where: { id: users[0].id }, data: { isBanned: true } });
-    try { expect((await getFollowingFeed(1, users[1].headers)).items).toEqual([]); }
+    try { expect((await getFollowingFeed(1, users[1].headers)).items).toHaveLength(12); }
     finally { await db.user.update({ where: { id: users[0].id }, data: { isBanned: false } }); }
     const ids = Array.from({ length: 24 }, () => randomUUID());
     await db.notification.createMany({ data: ids.map((id) => ({ id, recipientId: users[3].id, type: "NEW_FOLLOWER", eventKey: `page:${id}`, createdAt: stamp })) });

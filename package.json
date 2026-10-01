@@ -26,7 +26,8 @@
     "test:public:integration": "vitest run tests/public-content.integration.test.ts",
     "db:seed": "prisma db seed",
     "test:social:integration": "vitest run tests/social.integration.test.ts",
-    "test:notifications:integration": "vitest run tests/notifications.integration.test.ts"
+    "test:notifications:integration": "vitest run tests/notifications.integration.test.ts",
+    "test:admin:integration": "vitest run tests/administration.integration.test.ts tests/admin-protection.integration.test.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.6",

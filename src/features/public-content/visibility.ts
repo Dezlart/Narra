@@ -4,5 +4,5 @@ import type { Prisma } from "@/generated/prisma/client";
 export const publicArticleWhere = {
   status: "PUBLISHED", publishedRevisionId: { not: null },
   publishedAt: { not: null }, slug: { not: null },
-  publishedRevision: { is: { status: "APPROVED" } }, author: { isBanned: false },
+  publishedRevision: { is: { status: "APPROVED" } },
 } satisfies Prisma.ArticleWhereInput;

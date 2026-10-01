@@ -36,6 +36,8 @@ export async function SiteHeader() {
             <p className="truncate px-3 py-2 text-sm font-medium">{activeUser.name}</p>
             <Link href="/dashboard" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Личный кабинет</Link>
             <Link href="/dashboard/articles" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мои статьи</Link>
+            <Link href="/dashboard/analytics" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Моя аналитика</Link>
+            {activeUser.role === "ADMIN" && <Link href="/admin" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Управление платформой</Link>}
             <Link href="/dashboard/bookmarks" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Сохранённые статьи</Link>
             <Link href="/dashboard/notifications" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Уведомления</Link>
             {(activeUser.role === "MODERATOR" || activeUser.role === "ADMIN") && <Link href="/admin/moderation" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Модерация</Link>}

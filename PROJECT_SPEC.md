@@ -1,9 +1,104 @@
 # Narra
 
-> Текущий этап: PHASE 7 — Personalized Feed & Notifications. PHASE 1–6 завершены.
-> PHASE 8 и последующие фазы требуют отдельной команды.
-> Перед началом каждой новой фазы читать этот файл целиком. Решения реализации
-> ниже уточняют концептуальные модели исходной спецификации, не расширяя scope.
+> PHASE 1–7 завершены и зафиксированы. Текущая разрешённая работа: PHASE 8 — Administration, Reports & Analytics.
+> PHASE 9 и последующие этапы требуют отдельного задания.
+> Решения PHASE 8 ниже имеют приоритет над историческими заметками прежних фаз.
+
+## Принятые решения PHASE 8 (1 октября 2026)
+
+- Единый admin layout для существующих moderation/comments и новых разделов.
+  MODERATOR: moderation, comments, reports. ADMIN дополнительно: platform overview,
+  users/roles/ban, articles/archive/restore, categories. Layout не заменяет guard:
+  каждый page/query/service проверяет права; mutations повторяют проверку под User lock.
+  USER получает 404, guest — login с whitelist returnTo. Private pages noindex,
+  request-time queries без общего Data Cache, PrivatePageLifecycle для BFCache.
+- Все изменения role/ban сериализуются transaction advisory lock (78421,8), затем
+  User строки блокируются в порядке id. READ COMMITTED читает свежий count после
+  ожидания lock. Проверяются актуальные права actor и число активных ADMIN.
+  Self-ban запрещён; понижение себя допустимо лишь при наличии другого активного ADMIN.
+  Другого ADMIN можно блокировать/понижать, сохранив как минимум одного активного.
+  UI требует явного native confirmation для role/ban/archive операций.
+- Ban атомарно устанавливает isBanned и удаляет Session данного пользователя.
+  Unban сессии не восстанавливает. BEFORE INSERT Session trigger блокирует User
+  FOR SHARE и проверяет isBanned: закрыта гонка login/signup-session против ban.
+  Роли по-прежнему читаются guards из User; role change не требует новой сессии.
+- НОВАЯ семантика ban отменяет прежнее автоматическое скрытие публикаций и comments:
+  ban ограничивает аккаунт, опубликованный контент остаётся согласно moderation status.
+  publicArticleWhere больше не фильтрует автора по isBanned; publicCommentView и
+  visibleCommentWhere зависят только от deletedAt/hiddenAt. Публичный профиль остаётся
+  читаемым, новая подписка на banned недоступна. Существующие связи сохраняются.
+  Like/follower counts по-прежнему исключают banned участников. Notifications не
+  отправляются banned recipients; historical follow notifications сохраняют прежнюю
+  нейтральную формулировку для banned actor. Новых типов Notification нет.
+- ADMIN archive меняет только Article.status=PUBLISHED→ARCHIVED; pointer, approved
+  revisions, publishedAt, реакции и обсуждения сохраняются. Restore требует прежние
+  slug/publishedAt и собственную APPROVED publishedRevision; восстанавливает PUBLISHED.
+  Действия под Article FOR UPDATE, shared public rule закрывает все public surfaces,
+  images/bookmarks/following/search/SEO. Draft/pending update при архивировании сохранён,
+  редактор/модерация приостановлены до восстановления. Restore не рассылает notification.
+- Category.archivedAt: активные категории доступны в навигации/выборе автора/sitemap.
+  Slug задаётся при создании и неизменяем при rename. Старые публичные category URLs
+  и названия продолжают работать; текущие опубликованные версии не меняются.
+  Новая revision не наследует архивную категорию (categoryId=null). Старый draft
+  сохраняет прежнюю связь и допускает autosave текста, но submit требует активную
+  категорию. Уже отправленная PENDING допускает review с исторической категорией.
+  Category shared lock при выборе/submit защищает от конкурентного archive.
+- Report targets строго ARTICLE xor COMMENT, FK Restrict сохраняет контекст и историю.
+  Soft-delete comment стирает content, Report остаётся; физических target deletes
+  через текущий product workflow нет. Reporter из active session; только public target,
+  не собственный, comments только visible. До 10 новых reports за скользящий час,
+  actor row lock сериализует лимит. Повтор OPEN возвращает безопасный успех.
+- ReportReason: SPAM/HARASSMENT/HATE_OR_ABUSE/ILLEGAL_OR_DANGEROUS/PRIVACY/MISLEADING/OTHER.
+  Description <=2000, OTHER требует >=5. Status OPEN/RESOLVED/DISMISSED.
+  UNIQUE nullable activeKey, CHECK связывает OPEN key с reporter:type:target, target
+  CHECK запрещает ноль/два targets. После resolution activeKey=null, новая жалоба
+  допускается. Закрытие требует resolvedAt/resolvedById, optional note <=2000.
+- Reports queue 20/page, OPEN по умолчанию, createdAt ASC/id ASC, filters status/type.
+  Приватные metadata доступны лишь MODERATOR/ADMIN. Review под Report FOR UPDATE:
+  NONE/hidden comment через общий PHASE 6 transaction helper/ADMIN article archive.
+  Действие и resolution — одна транзакция, ошибка откатывает оба. DISMISSED запрещает
+  moderation action. MODERATOR оставляет article report OPEN, если требуется ADMIN.
+- ArticleView — source of truth, без отдельного viewsCount. UNIQUE(articleId,
+  visitorHash,viewBucket), createdAt, bucket DATE UTC. Только публичная Article;
+  Article FOR SHARE сериализует с archive. Pending update не меняет identity Article.
+- Единая для guest/member first-party HttpOnly/SameSite=Lax cookie на 86400 секунд,
+  Secure в production. Случайные 32 bytes, время выдачи и HMAC подпись. Сервер
+  проверяет подпись/возраст; cookie не продлевается каждым refresh. В БД HMAC-SHA256
+  от token + articleId + UTC bucket: невозможно напрямую связать hashes между
+  статьями/сутками. Нет userId, IP, session token или fingerprint в ArticleView.
+  ANALYTICS_HASH_SECRET отдельный server-only secret >=32 символов, не Better Auth key.
+- ViewTracker работает после mount видимой страницы, GET/SSR/metadata/prefetch не
+  увеличивают count. Сначала устанавливается cookie, затем отдельная POST action
+  регистрирует view; повтор createMany skipDuplicates безопасен. Cookie-less запрос
+  не считает просмотр. Нет secret/DB connection — чтение продолжает работать, view
+  не считается. Один visitor+article+UTC day=1; срок cookie — ещё одно ограничение.
+  Удаление cookie, новый браузер и одновременная первая выдача cookie в разных вкладках
+  могут считаться отдельными visitors: это anti-refresh, не anti-fraud.
+- Cookie/token не записываются в ArticleView и не логируются. Сохраняется агрегируемая
+  история daily article-specific hashes; автоматического retention/cleanup пока нет.
+  В общей инфраструктуре Better Auth прежние Session IP/userAgent не меняются;
+  новая аналитика их не читает. Смена ANALYTICS_HASH_SECRET сбрасывает dedup identity.
+- Author analytics: own session only. Total views и visible comments — текущие public
+  статьи; likes — все own статьи (включая архив) от active участников; followers —
+  active. Таблица public статей по 20/page, publishedAt DESC/id DESC, filtered relation
+  counts для likes/comments и views; без N+1. Archive сохраняет historical views,
+  но временно исключает их из author totals/table, restore возвращает.
+- Platform metrics: все users, public articles, pending неархивированных, visible
+  comments public статей, все historical views, OPEN reports. 14 UTC дней, SQL daily
+  aggregation с параметрами/явными типами, registrations/first publications/views.
+  Publication trend отражает первую дату даже если Article затем архивирована.
+  Авторский trend — views текущих public статей. CSS bars + доступная таблица,
+  без chart library. Списки ограничены 20+1, максимум 1000 страниц.
+- Все mutations (кроме фоновых views) используют прежний revalidatePath('/', 'layout').
+  Инициатор обновляется сразу; другие открытые вкладки — при навигации/refresh.
+  Нет realtime/email/queues/deployment/advanced BI. Никакой PHASE 9 реализации.
+- Additive migration 20260928200000_administration: Report/enums, ArticleView,
+  Category.archivedAt, User(role,isBanned), необходимые indexes/CHECK/Session trigger.
+  Старые migration SQL неизменны. Новые зависимости не добавлены.
+
+Источники: [PostgreSQL explicit/advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html),
+[Node.js HMAC](https://nodejs.org/api/crypto.html#cryptocreatehmacalgorithm-key-options).
+Server Actions/cookies/revalidatePath сверены по установленным Next.js docs.
 
 ## Принятые решения PHASE 7 (28 сентября 2026)
 

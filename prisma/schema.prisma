@@ -53,6 +53,10 @@ model User {
   following         Follow[] @relation("FollowerUser")
   notifications     Notification[] @relation("NotificationRecipient")
   causedNotifications Notification[] @relation("NotificationActor")
+  reports Report[] @relation("ReportReporter")
+  resolvedReports Report[] @relation("ReportResolver")
+
+  @@index([role, isBanned])
 }
 
 model Session {
@@ -126,6 +130,8 @@ model Article {
   bookmarks Bookmark[]
   comments  Comment[]
   notifications Notification[]
+  reports Report[]
+  views ArticleView[]
 
   // Composite FK prevents pointing at another article's revision.
   publishedRevision ArticleRevision? @relation("PublishedRevision", fields: [id, publishedRevisionId], references: [articleId, id], onDelete: NoAction, onUpdate: NoAction)
@@ -189,6 +195,7 @@ model Category {
   slug        String            @unique
   description String?
   revisions   ArticleRevision[]
+  archivedAt DateTime?
 }
 
 model Tag {
@@ -263,6 +270,7 @@ model Comment {
   parent Comment? @relation("CommentReplies", fields: [articleId, parentId], references: [articleId, id], onDelete: NoAction, onUpdate: NoAction)
   replies Comment[] @relation("CommentReplies")
   notifications Notification[]
+  reports Report[]
 
   @@unique([articleId, id])
   @@unique([authorId, requestId])
@@ -307,4 +315,60 @@ model Notification {
   @@index([articleId])
   @@index([revisionId])
   @@index([commentId])
+}
+
+
+enum ReportTargetType {
+  ARTICLE
+  COMMENT
+}
+enum ReportReason {
+  SPAM
+  HARASSMENT
+  HATE_OR_ABUSE
+  ILLEGAL_OR_DANGEROUS
+  PRIVACY
+  MISLEADING
+  OTHER
+}
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+model Report {
+  id String @id @default(cuid())
+  reporterId String
+  targetType ReportTargetType
+  articleId String?
+  commentId String?
+  reason ReportReason
+  description String?
+  status ReportStatus @default(OPEN)
+  createdAt DateTime @default(now())
+  resolvedAt DateTime?
+  resolvedById String?
+  resolutionNote String?
+  // Nullable after resolution. UNIQUE provides concurrent OPEN deduplication.
+  activeKey String? @unique
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  resolvedBy User? @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Restrict)
+  comment Comment? @relation(fields: [commentId], references: [id], onDelete: Restrict)
+  @@index([status, createdAt, id])
+  @@index([reporterId, createdAt])
+  @@index([articleId])
+  @@index([commentId])
+  @@index([resolvedById])
+}
+model ArticleView {
+  id String @id @default(cuid())
+  articleId String
+  visitorHash String
+  viewBucket DateTime @db.Date
+  createdAt DateTime @default(now())
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@unique([articleId, visitorHash, viewBucket])
+  @@index([articleId, createdAt])
+  @@index([createdAt])
 }

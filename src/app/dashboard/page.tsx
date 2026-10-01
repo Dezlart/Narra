@@ -18,6 +18,7 @@ export default async function DashboardPage() {
       <h1 className="break-words font-editorial text-4xl leading-tight tracking-tight sm:text-5xl">Здравствуйте, {user.name}.</h1>
       <p className="mt-4 text-muted-foreground">Здесь начинается ваша история в Narra.</p>
       <div className="mt-8 flex flex-wrap gap-3"><Button asChild><Link href="/dashboard/articles">Мои статьи <ArrowUpRight aria-hidden="true" /></Link></Button><Button variant="outline" asChild><Link href="/editor/new">Написать статью</Link></Button></div>
+      <Link href="/dashboard/analytics" className="mt-5 mr-5 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Моя аналитика →</Link>
       <Link href="/dashboard/bookmarks" className="mt-5 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Сохранённые статьи →</Link>
       <div className="mt-3 flex flex-wrap gap-5 text-sm text-primary"><Link className="inline-flex min-h-11 items-center underline underline-offset-4" href="/following">Лента подписок →</Link><Link className="inline-flex min-h-11 items-center underline underline-offset-4" href="/dashboard/notifications">Уведомления →</Link></div>
       <section aria-label="Ваш профиль" className="my-10 rounded-lg border border-border bg-card p-6 sm:p-8">

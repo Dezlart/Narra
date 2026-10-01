@@ -209,7 +209,7 @@ describe("real social features with PostgreSQL and Better Auth", () => {
     await db.user.update({ where: { id: users[1].id }, data: { isBanned: true } });
     try {
       const comments = [...(await getArticleComments(articleId, 1, guest)).items, ...(await getArticleComments(articleId, 2, guest)).items];
-      expect(comments.find((c) => c.id === visibleRoot.id)).toMatchObject({ content: null, author: null, status: "hidden" });
+      expect(comments.find((c) => c.id === visibleRoot.id)).toMatchObject({ content: "Проверка страниц", status: "visible" });
     } finally { await db.user.update({ where: { id: users[1].id }, data: { isBanned: false } }); }
     for (let i = 0; i < 12; i++) {
       const row = await db.article.create({ data: { authorId: users[0].id, slug: `qa-social-${run}-${i}`, revisions: { create: { version: 1, status: "APPROVED", title: `Закладка ${i}`, excerpt: "Описание", content: body } } }, include: { revisions: true } });

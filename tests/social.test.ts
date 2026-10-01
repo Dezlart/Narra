@@ -20,14 +20,15 @@ describe("social input and privacy boundaries", () => {
     for (const page of [0, -1, 1.5, 1001, "2"]) expect(repliesSchema.safeParse({ articleId: "a", parentId: "b", page }).success).toBe(false);
     expect(createCommentSchema.safeParse({ ...comment, requestId: "bad" }).success).toBe(false);
   });
-  it("redacts removed, moderated and banned content before serialization", () => {
+  it("redacts removed and moderated content; ban preserves published text before serialization", () => {
     const row: CommentRow = { id: "c", authorId: "u", parentId: null, content: "PRIVATE-TEXT", createdAt: new Date(), updatedAt: new Date(), deletedAt: null, hiddenAt: null, author: { name: "PRIVATE-NAME", username: "author", isBanned: false }, _count: { replies: 2 } };
     expect(publicCommentView(row, "u")).toMatchObject({ content: "PRIVATE-TEXT", canDelete: true, canReply: true, hasReplies: true });
-    for (const hidden of [{ ...row, hiddenAt: new Date() }, { ...row, deletedAt: new Date() }, { ...row, author: { ...row.author, isBanned: true } }]) {
+    for (const hidden of [{ ...row, hiddenAt: new Date() }, { ...row, deletedAt: new Date() }]) {
       const view = publicCommentView(hidden, "u");
       expect(view.content).toBeNull(); expect(view.author).toBeNull(); expect(view.canReply).toBe(false);
       expect(JSON.stringify(view)).not.toContain("PRIVATE-"); expect(view).not.toHaveProperty("authorId");
     }
+    expect(publicCommentView({ ...row, author: { ...row.author, isBanned: true } }, null).content).toBe(row.content);
     expect(publicCommentView({ ...row, deletedAt: new Date() }, "u").canDelete).toBe(false);
   });
   it("never surfaces raw infrastructure errors", () => {

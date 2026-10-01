@@ -166,7 +166,7 @@ describe("real public content and discovery", () => {
     for (const secret of [emails[0], "rejectionReason", "reviewedById", "editVersion", "pathname", "content"]) expect(serialized).not.toContain(secret);
     expect((await getPublicSitemapPaths()).some((row) => row.path === `/articles/${slug}`)).toBe(true);
   }, 120000);
-  it("hides archived articles, nonapproved pointers and banned authors on every surface", async () => {
+  it("hides archived/nonapproved articles but preserves banned author publications", async () => {
     await db.article.update({ where: { id: articleId }, data: { status: "ARCHIVED" } });
     expect(await getPublishedArticleBySlug(slug)).toBeNull(); expect(await getPublishedImageRecord(articleId, imageB)).toBeNull();
     expect((await getPublicSitemapPaths()).some((row) => row.path === `/articles/${slug}`)).toBe(false);
@@ -176,8 +176,8 @@ describe("real public content and discovery", () => {
     expect(await getPublishedArticleBySlug(slug)).toBeNull(); expect(await getPublishedImageRecord(articleId, imageB)).toBeNull();
     await db.articleRevision.update({ where: { id: pointer }, data: { status: "APPROVED", rejectionReason: null } });
     await db.user.update({ where: { id: users[0].id }, data: { isBanned: true } });
-    expect((await getPublishedArticlesByAuthor(usernames[0], 1)).items).toHaveLength(0);
-    expect((await searchPublishedArticles(run, 1)).items).toHaveLength(0);
-    expect(await getPublishedArticleBySlug(slug)).toBeNull(); expect(await getPublishedImageRecord(articleId, imageB)).toBeNull();
+    expect((await getPublishedArticlesByAuthor(usernames[0], 1)).items.length).toBeGreaterThan(0);
+    expect((await searchPublishedArticles(run, 1)).items.length).toBeGreaterThan(0);
+    expect(await getPublishedArticleBySlug(slug)).not.toBeNull(); expect(await getPublishedImageRecord(articleId, imageB)).not.toBeNull();
   }, 120000);
 });

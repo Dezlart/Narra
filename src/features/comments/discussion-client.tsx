@@ -1,4 +1,5 @@
 "use client";
+import { ReportButton } from "@/features/reports/report-button";
 import Link from "next/link";
 import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -37,7 +38,7 @@ export function CommentComposer({ articleId, parentId = null, path, onCreated }:
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
   </form>;
 }
-function CommentBody({ item, afterDelete }: { item: PublicComment; afterDelete?: () => Promise<void> }) {
+function CommentBody({ item, viewer, path, afterDelete }: { item: PublicComment; viewer: Viewer; path: string; afterDelete?: () => Promise<void> }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -47,6 +48,7 @@ function CommentBody({ item, afterDelete }: { item: PublicComment; afterDelete?:
       <time dateTime={item.createdAt}>{new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(item.createdAt))} UTC</time>
     </div>
     <p className={`mt-3 whitespace-pre-wrap break-words text-sm leading-7 ${item.status === "visible" ? "" : "italic text-muted-foreground"}`}>{item.content ?? (item.status === "deleted" ? "Комментарий удалён автором." : "Комментарий скрыт.")}</p>
+    {item.status === "visible" && !item.canDelete && <ReportButton targetId={item.id} targetType="COMMENT" viewer={viewer} path={path} />}
     {item.canDelete && <div className="mt-2">
       {!confirm ? <Button variant="ghost" onClick={() => setConfirm(true)}>Удалить</Button> : <div className="flex flex-wrap items-center gap-2"><span className="text-xs">Удалить текст без возможности восстановления?</span><Button variant="destructive" disabled={pending} onClick={() => {
         setError(""); startTransition(async () => {
@@ -72,7 +74,7 @@ export function CommentThread({ item, articleId, viewer, path }: { item: PublicC
     } catch { setReplies(null); setError("Не удалось загрузить ответы. Попробуйте ещё раз."); }
   }
   return <li className="min-w-0 border-t border-border py-6">
-    <CommentBody item={item} />
+    <CommentBody item={item} viewer={viewer} path={path} />
     <div className="mt-2 flex flex-wrap gap-2">
       {item.canReply && viewer === "member" && <Button variant="ghost" aria-expanded={replying} onClick={() => setReplying(!replying)}>{replying ? "Отменить ответ" : "Ответить"}</Button>}
       {item.canReply && viewer === "guest" && <Link href={`/login?returnTo=${encodeURIComponent(path)}`} className="inline-flex min-h-11 items-center text-sm text-primary">Войти, чтобы ответить</Link>}
@@ -81,7 +83,7 @@ export function CommentThread({ item, articleId, viewer, path }: { item: PublicC
     {replying && item.canReply && <CommentComposer articleId={articleId} parentId={item.id} path={path} onCreated={async (page) => { setReplying(false); await load(page); }} />}
     {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
     {replies && <div className="mt-4 min-w-0 border-l-2 border-border pl-3 sm:pl-6" aria-label="Ответы">
-      <ul className="space-y-6">{replies.items.map((reply) => <li key={`${reply.id}-${reply.version}`}><CommentBody item={reply} afterDelete={() => load(replies.page)} /></li>)}</ul>
+      <ul className="space-y-6">{replies.items.map((reply) => <li key={`${reply.id}-${reply.version}`}><CommentBody item={reply} viewer={viewer} path={path} afterDelete={() => load(replies.page)} /></li>)}</ul>
       {replies.items.length === 0 && <p className="text-sm text-muted-foreground">На этой странице ответов нет.</p>}
       <nav aria-label="Страницы ответов" className="mt-4 flex flex-wrap items-center gap-3 text-xs">
         {replies.page > 1 && <Button variant="ghost" disabled={pending} onClick={() => startTransition(() => load(replies.page - 1))}>← Назад</Button>}

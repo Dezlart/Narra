@@ -6,10 +6,10 @@
 **PHASE 3 — Articles, Rich-Text Editor & Drafts** и
 **PHASE 4 — Moderation & Publishing** и **PHASE 5 — Public Content & Discovery**.
 Реализованы **PHASE 6 — Social Features** и **PHASE 7 — Personalized Feed & Notifications**.
-PHASE 8 не начата.
+Реализована **PHASE 8 — Administration, Reports & Analytics**. PHASE 9 требует отдельного задания.
 Полная спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md). Перед каждой новой
 фазой сначала прочитайте этот файл.
-Результаты реализации, проверок и оставшиеся настройки: [PHASE7_REPORT.md](PHASE7_REPORT.md).
+Результаты PHASE 8: [PHASE8_REPORT.md](PHASE8_REPORT.md); история предыдущего этапа: [PHASE7_REPORT.md](PHASE7_REPORT.md).
 
 ## Что есть сейчас
 
@@ -17,7 +17,7 @@ PHASE 8 не начата.
 - shadcn/ui (официальный CLI, Radix Nova, только Button), Lucide.
 - Адаптивная реальная лента, страницы чтения, категории, теги, поиск,
   навигация, состояния загрузки, ошибки и 404.
-- Prisma 7, PostgreSQL, единый ленивый серверный клиент, семь SQL-миграций.
+- Prisma 7, PostgreSQL, единый ленивый серверный клиент, восемь SQL-миграций.
 - Better Auth: регистрация, вход/выход, сессии в БД; публичные профили,
   собственные настройки и серверные guards USER/MODERATOR/ADMIN.
 - Настоящие статьи/черновики, Tiptap, autosave, категории/теги и private Blob images.
@@ -176,6 +176,7 @@ npm run test:moderation:integration
 npm run test:public:integration
 npm run test:social:integration
 npm run test:notifications:integration
+npm run test:admin:integration
 ```
 
 `postinstall`, `typecheck` и `build` генерируют Prisma Client. Typecheck сначала
@@ -230,7 +231,7 @@ editor/new и editor/[id], история статьи, admin/moderation/comment
 Публичный `/profile/[username]` выбирает только имя, username, bio, image и createdAt.
 Аватар пока — инициалы; редактирование URL/загрузка изображений отложены.
 Нет email, ролей, идентификаторов сессий, fake articles или фиктивной статистики.
-Несуществующий/заблокированный профиль возвращает HTTP 404.
+Несуществующий профиль возвращает HTTP 404. Бан закрывает аккаунт, но сохраняет публичный профиль и опубликованный контент.
 `/dashboard/settings` обновляет только имя/username/bio текущего пользователя.
 Строгая Zod schema запрещает лишние поля; ID берётся только из сессии,
 isBanned повторно проверяется в условии записи. Старый и новый URL профиля
@@ -268,7 +269,7 @@ npm run admin:promote -- --email owner@example.com --confirm
 Она не запускается автоматически и недоступна через HTTP. Актуальная роль
 подхватывается guards при следующем запросе. При проверках PHASE 4 роль ADMIN
 назначается только временному тестовому аккаунту, который затем удаляется.
-Реальные аккаунты автоматически не повышаются. Полной админ-панели пока нет.
+Реальные аккаунты автоматически не повышаются. Административные страницы описаны ниже.
 
 ## Работа со статьями
 
@@ -413,7 +414,7 @@ Approval новой версии переключает `publishedRevisionId`, �
 | `/api/public/articles/[articleId]/images/[imageId]` | Изображение текущей публикации |
 
 Публичное правило едино: Article=PUBLISHED, publishedRevisionId существует,
-publishedRevision=APPROVED, автор не заблокирован. Архив и первая неопубликованная
+publishedRevision=APPROVED. Бан автора не скрывает публикацию: для этого ADMIN отдельно архивирует Article. Архив и первая неопубликованная
 версия дают 404. Новый DRAFT/PENDING/REJECTED не меняет содержание, SEO, категории,
 теги или изображения прежней публикации. Теги только из приватных версий дают 404.
 
@@ -481,7 +482,7 @@ Soft delete автором очищает content и ставит deletedAt, с�
 стёртый текст нельзя. Модератор ставит hiddenAt/hiddenById, может отменить скрытие.
 Скрытые/удалённые тексты и имена не передаются в публичный HTML/RSC/JSON; остаётся
 placeholder. Ответы доступны, новые ответы к такому корню запрещены. Скрытые и
-удалённые сообщения, а также сообщения banned, не входят в публичный счётчик.
+удалённые сообщения не входят в публичный счётчик. Бан автора сам по себе не скрывает комментарии.
 Модератор видит сохранённый скрытый текст только в защищённом разделе.
 
 Публичные счётчики берутся из PostgreSQL через filtered _count без отдельных запросов
@@ -565,7 +566,88 @@ PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE настраиваются так же, к
 Cookies и временные пароли передаются stdin, не сохраняются; screenshots игнорируются.
 Новых credentials и пакетов PHASE 7 не требует, `.env` сохраняется.
 
+## Administration, Reports & Analytics
+
+| Маршрут | Доступ |
+| --- | --- |
+| `/admin` | ADMIN: показатели платформы и динамика 14 UTC дней |
+| `/admin/users` | ADMIN: поиск/фильтры/роли/ban/unban |
+| `/admin/articles`, `/admin/articles/[id]` | ADMIN: все статьи, история, archive/restore |
+| `/admin/categories` | ADMIN: создание, rename/description, archive/restore |
+| `/admin/moderation`, `/admin/comments`, `/admin/reports` | MODERATOR и ADMIN |
+| `/admin/reports/[id]` | MODERATOR и ADMIN: контекст жалобы и решение |
+| `/dashboard/analytics` | Только собственная статистика активного пользователя |
+
+Проверки прав выполняются в страницах, queries и mutations. MODERATOR не получает
+доступ к platform/users/articles/categories даже по прямому URL. Роль применяется
+при следующем запросе, старая сессия не удерживает отозванные права.
+
+Ban отзывает все Sessions; unban требует нового входа. Self-ban запрещён.
+Нельзя удалить последнего активного ADMIN через ban/demotion; конкурентные изменения
+сериализованы PostgreSQL advisory lock. Другого ADMIN менять можно только с
+сохранением активного администратора. Критические операции требуют подтверждения.
+**Начиная с PHASE 8 бан не скрывает опубликованный контент и публичный профиль.**
+Статьи снимаются с доступа отдельным archive, комментарии — hide. История сохраняется.
+Счётчики likes/followers по-прежнему учитывают active участников.
+
+Archive Article сохраняет publishedRevision и первую publishedAt, версии и реакции.
+Restore возвращает прежнюю одобренную версию; черновик нельзя восстановить как
+публикацию. Архив исключён из feed/search/category/tag/profile/following/bookmarks.
+Новая рассылка notifications при restore не создаётся.
+
+Category slug стабилен после создания. Архивная категория исчезает из навигации
+и выбора новой revision; исторические category URLs и опубликованные статьи
+продолжают работать. Новый draft из старой публикации очищает архивный categoryId.
+Существующий draft сохраняет текст/связь, но перед submit надо выбрать активную
+категорию. Уже PENDING можно рассмотреть с прежней категорией.
+
+«Пожаловаться» доступно у публичной статьи и видимого комментария. Гость получает
+login. Собственный/приватный/скрытый target запрещён; reporter из session. До 10 новых
+жалоб в час. Повтор OPEN не дублируется, после закрытия новая жалоба допускается.
+Report содержит один target, reason/description; OTHER требует пояснения.
+MODERATOR/ADMIN закрывают как RESOLVED/DISMISSED с metadata. Скрытие комментария или
+ADMIN archive и resolution атомарны. DISMISSED не меняет материал. Soft-delete
+комментария сохраняет историю жалобы без стёртого текста. Target/reporter/resolver
+FK Restrict не разрешает физическое удаление контекста без отдельной процедуры.
+
+### Настройка просмотров
+
+Добавьте в `.env` отдельный случайный `ANALYTICS_HASH_SECRET` (минимум 32 символа).
+Пример генерации приведён выше для secrets; не используйте Better Auth key повторно.
+Не копируйте secret в NEXT_PUBLIC или Git. В текущей development среде локальный
+secret создан без вывода значения; при переносе окружения настройте собственный.
+Без него статья читается, но просмотры не регистрируются.
+
+Одна first-party HttpOnly cookie используется и у гостей, и после входа. Срок —
+24 часа, SameSite=Lax, Secure в production. Подписанный случайный token остаётся
+в cookie. В ArticleView — только HMAC, scoped к статье и UTC дню, без IP/userId/
+session token/fingerprint. Один visitor+Article+UTC day даёт один просмотр; повтор
+POST/refresh подавляется UNIQUE в БД. Prefetch/SSR не считаются, действие запускается
+после открытия видимой страницы. Отсутствие аналитики не прерывает чтение.
+Очистка cookies/другой браузер и параллельная первая выдача cookie в разных вкладках
+могут дать новые views; полноценной anti-fraud системы нет. Автоматического retention
+истории hashes пока нет. Смена secret сбрасывает dedup identity.
+
+Аналитика автора показывает views и видимые comments текущих public статей,
+likes всех own статей от active пользователей и active followers. Таблица public
+статей использует 20 строк на страницу. Archive сохраняет views в БД, но исключает
+их из текущих author totals до restore. Platform views включают всю историю,
+platform comments — видимые comments public статей. Trends — 14 дней UTC;
+publication trend учитывает первые публикации, даже впоследствии архивированные.
+Графики имеют текстовую таблицу, данные агрегируются в PostgreSQL.
+
+`npm run test:admin:integration` требует development DATABASE_URL. Один набор
+проверяет реальные services в текущей БД и удаляет только свои fixtures. Второй
+создаёт случайную временную schema, воспроизводит все migrations, проверяет
+последнего ADMIN на изолированных аккаунтах и удаляет только эту schema.
+Нужны права CREATE SCHEMA. Реальные пользователи/роли не меняются.
+
+Для browser QA запустите production server с той же development БД, укажите
+`$env:NARRA_ADMIN_BROWSER_QA = (Resolve-Path tests/administration.browser.mjs).Path`,
+PLAYWRIGHT_MODULE и CHROMIUM_EXECUTABLE, как для social QA выше. Credentials идут
+через stdin; screenshots игнорируются Git. Без переменной browser case явно skipped.
+
 ## Следующий этап
 
-Только после отдельной команды: PHASE 8 — reports, administration и analytics
-в согласованном scope. Реализация PHASE 8 не начиналась.
+Только по отдельному заданию: PHASE 9 — quality, responsive polish, accessibility
+и расширение проверок. PHASE 9 и PHASE 10 не начаты, deployment не выполняется.

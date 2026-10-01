@@ -8,10 +8,10 @@ export async function getPublicSitemapPaths() {
   const [articles, categories, tags, authors] = await Promise.all([
     db.article.findMany({ where: publicArticleWhere, orderBy: [{ publishedAt: "desc" }, { id: "desc" }], take: 10000,
       select: { slug: true, publishedRevision: { select: { reviewedAt: true } } } }),
-    db.category.findMany({ select: { slug: true }, orderBy: { slug: "asc" }, take: 200 }),
+    db.category.findMany({ where: { archivedAt: null }, select: { slug: true }, orderBy: { slug: "asc" }, take: 200 }),
     db.tag.findMany({ where: { revisions: { some: { revision: { publishedBy: { some: publicArticleWhere } } } } },
       select: { slug: true }, orderBy: { slug: "asc" }, take: 10000 }),
-    db.user.findMany({ where: { isBanned: false, username: { not: null }, articles: { some: publicArticleWhere } },
+    db.user.findMany({ where: { username: { not: null }, articles: { some: publicArticleWhere } },
       select: { username: true }, orderBy: { username: "asc" }, take: 10000 }),
   ]);
   return [

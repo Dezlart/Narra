@@ -1,3 +1,4 @@
+import { ReportButton } from "@/features/reports/report-button";
 import { getArticleSocialState } from "./queries";
 import { SocialButton } from "./social-button";
 export async function ArticleSocial({ articleId, path }: { articleId: string; path: string }) {
@@ -8,6 +9,7 @@ export async function ArticleSocial({ articleId, path }: { articleId: string; pa
       <SocialButton kind="bookmark" target={articleId} active={state.saved} viewer={state.viewer} returnTo={path} />
       <a href="#comments" className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-primary">Комментарии · {state.comments}</a>
     </div>
+    <ReportButton targetId={articleId} targetType="ARTICLE" viewer={state.viewer} path={path} />
     {state.viewer === "banned" && <p className="mt-3 text-sm text-muted-foreground">Ваш аккаунт заблокирован. Социальные действия недоступны.</p>}
   </div>;
 }

@@ -57,9 +57,10 @@ export async function createDraftRevision(input: unknown, requestHeaders?: Heade
       ? await tx.articleRevision.findUniqueOrThrow({ where: { id: article.publishedRevisionId }, include: revisionInclude }) : latest;
     if (!source) throw new ArticleError("LOCKED", "Нет исходной версии.");
     if (source.id === article.publishedRevisionId && source.status !== "APPROVED") throw new ArticleError("LOCKED", "Опубликованная версия имеет некорректный статус.");
+    if (source.categoryId) await tx.$queryRaw`SELECT id FROM "Category" WHERE id = ${source.categoryId} FOR SHARE`;
     const draft = await tx.articleRevision.create({ data: {
       articleId, version: (latest?.version ?? 0) + 1, title: source.title, excerpt: source.excerpt,
-      content: source.content as Prisma.InputJsonValue, categoryId: source.categoryId, coverImage: source.coverImage,
+      content: source.content as Prisma.InputJsonValue, categoryId: source.categoryId && await tx.category.count({ where: { id: source.categoryId, archivedAt: null } }) ? source.categoryId : null, coverImage: source.coverImage,
       tags: { create: source.tags.map(({ tagId }) => ({ tagId })) },
     }, include: revisionInclude });
     return view(articleId, !!article.publishedRevisionId, draft);
@@ -75,7 +76,10 @@ export async function updateArticleDraft(input: unknown, requestHeaders?: Header
     const draft = await tx.articleRevision.findFirst({ where: { id: revisionId, articleId, status: "DRAFT" } });
     if (!draft) throw new ArticleError("LOCKED", "Эта версия больше не редактируется.");
     if (draft.editVersion !== editVersion) throw new ArticleError("CONFLICT", "Черновик изменён в другой вкладке. Ваш текст сохранён в редакторе. Скачайте копию перед перезагрузкой.");
-    if (patch.categoryId && !await tx.category.findUnique({ where: { id: patch.categoryId } })) throw new ArticleError("LOCKED", "Выберите существующую категорию.");
+    if (patch.categoryId && patch.categoryId !== draft.categoryId) {
+      await tx.$queryRaw`SELECT id FROM "Category" WHERE id = ${patch.categoryId} FOR SHARE`;
+      if (!await tx.category.findFirst({ where: { id: patch.categoryId, archivedAt: null } })) throw new ArticleError("LOCKED", "Выберите активную категорию.");
+    }
     await validateImageReferences(tx, articleId, patch);
     const { tags, content, ...fields } = patch;
     const changed = await tx.articleRevision.updateMany({ where: { id: revisionId, articleId, status: "DRAFT", editVersion },

@@ -12,7 +12,7 @@ export async function listOwnArticles(page: number, requestHeaders?: Headers) {
       revisions: { take: 1, orderBy: { version: "desc" }, select: historyFields } } });
   return { articles: rows.slice(0, 20), hasNext: rows.length > 20, page: safePage };
 }
-export async function listCategories() { return getPrisma().category.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }); }
+export async function listCategories() { return getPrisma().category.findMany({ where: { archivedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }); }
 
 export async function getArticleRevisionHistory(input: unknown, page = 1, requestHeaders?: Headers, revisionInput?: unknown) {
   const actor = await requireAuth(requestHeaders);

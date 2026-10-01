@@ -63,3 +63,9 @@ export async function requirePageModerator(returnTo: string) {
   if (user.role !== "MODERATOR" && user.role !== "ADMIN") notFound();
   return user;
 }
+
+export async function requirePageAdmin(returnTo: string) {
+  const user = await requirePageUser(returnTo);
+  if (user.role !== "ADMIN") notFound();
+  return user;
+}

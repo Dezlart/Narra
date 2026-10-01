@@ -29,6 +29,6 @@ describe("publication boundaries", () => {
   });
   it("allows only implemented moderation/history return destinations", () => {
     for (const value of ["/admin/moderation", "/admin/moderation/rev-1", "/dashboard/articles/story1"]) expect(safeReturnTo(value)).toBe(value);
-    for (const value of ["/admin/users", "/admin/moderation/../users", "/admin/moderation/r?url=//evil", "//evil"]) expect(safeReturnTo(value)).toBe("/dashboard");
+    for (const value of ["/admin/unknown", "/admin/moderation/../users", "/admin/moderation/r?url=//evil", "//evil"]) expect(safeReturnTo(value)).toBe("/dashboard");
   });
 });

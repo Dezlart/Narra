@@ -31,7 +31,7 @@ describe("authorization", () => {
     expect(() => assertRole({ role: "ADMIN", isBanned: false }, ["ADMIN"])).not.toThrow();
     expect(() => assertRole({ role: "ADMIN", isBanned: true }, ["ADMIN"])).toThrow("BANNED");
   });
-  it.each(["https://evil.example", "//evil.example", "/\\evil.example", "/dashboard?next=https://evil.example", "/admin", null, ["/dashboard"]])("rejects unsafe return URL %s", (url) => {
+  it.each(["https://evil.example", "//evil.example", "/\\evil.example", "/dashboard?next=https://evil.example", "/admin/unknown", null, ["/dashboard"]])("rejects unsafe return URL %s", (url) => {
     expect(safeReturnTo(url)).toBe("/dashboard");
   });
   it("keeps a safe settings return path", () => expect(safeReturnTo("/dashboard/settings")).toBe("/dashboard/settings"));

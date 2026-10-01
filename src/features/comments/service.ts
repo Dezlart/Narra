@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { createNotification } from "@/features/notifications/events";
 import { getPrisma } from "@/lib/prisma";
 import { requireModerator } from "@/lib/auth/guards";
@@ -22,7 +23,7 @@ export async function createComment(input: unknown, requestHeaders?: Headers) {
     if (data.parentId) {
       await tx.$queryRaw`SELECT id FROM "Comment" WHERE id = ${data.parentId} FOR UPDATE`;
       const parent = await tx.comment.findFirst({ where: { id: data.parentId, articleId: data.articleId, parentId: null,
-        deletedAt: null, hiddenAt: null, author: { isBanned: false } }, select: { id: true, authorId: true } });
+        deletedAt: null, hiddenAt: null }, select: { id: true, authorId: true } });
       if (!parent) throw new SocialError("INVALID_PARENT", "Ответить можно только на доступный основной комментарий этой статьи.");
       recipientId = parent.authorId;
     }
@@ -60,13 +61,18 @@ async function setHidden(input: unknown, hidden: boolean, requestHeaders?: Heade
   const actor = await requireModerator(requestHeaders);
   return getPrisma().$transaction(async (tx) => {
     await lockSocialUsers(tx, actor.id, undefined, true);
+    await setCommentHiddenInTransaction(tx, commentId, actor.id, hidden);
+  }, socialTransactionOptions);
+}
+export const hideComment = (input: unknown, requestHeaders?: Headers) => setHidden(input, true, requestHeaders);
+export const restoreComment = (input: unknown, requestHeaders?: Headers) => setHidden(input, false, requestHeaders);
+
+// Shared by ordinary moderation and atomic report resolution. Caller authorizes and locks actor.
+export async function setCommentHiddenInTransaction(tx: Prisma.TransactionClient, commentId: string, actorId: string, hidden: boolean) {
     await tx.$queryRaw`SELECT id FROM "Comment" WHERE id = ${commentId} FOR UPDATE`;
     const comment = await tx.comment.findUnique({ where: { id: commentId }, select: { deletedAt: true, hiddenAt: true } });
     if (!comment) throw new SocialError("NOT_FOUND", "Комментарий недоступен.");
     if (comment.deletedAt) throw new SocialError("CONFLICT", "Автор удалил комментарий. Восстановление невозможно.");
     if (Boolean(comment.hiddenAt) !== hidden) await tx.comment.update({ where: { id: commentId },
-      data: { hiddenAt: hidden ? new Date() : null, hiddenById: hidden ? actor.id : null } });
-  }, socialTransactionOptions);
+      data: { hiddenAt: hidden ? new Date() : null, hiddenById: hidden ? actorId : null } });
 }
-export const hideComment = (input: unknown, requestHeaders?: Headers) => setHidden(input, true, requestHeaders);
-export const restoreComment = (input: unknown, requestHeaders?: Headers) => setHidden(input, false, requestHeaders);

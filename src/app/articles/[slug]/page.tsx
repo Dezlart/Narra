@@ -1,3 +1,4 @@
+import { ViewTracker } from "@/features/analytics/view-tracker";
 import { ContentImage } from "@/features/articles/content-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,6 +24,7 @@ export default async function ArticlePage({ params, searchParams }: Props) {
   const article = await readArticle(params);
   const related = article.category ? await getRelatedPublishedArticles(article.id, article.category.slug) : [];
   return <main id="main-content" tabIndex={-1} className="page-container py-10 sm:py-16">
+    <ViewTracker articleId={article.id} />
     <article>
       <header className="mx-auto max-w-4xl">
         {article.category && <Link href={`/categories/${article.category.slug}`} className="text-sm text-primary hover:underline">{article.category.name}</Link>}

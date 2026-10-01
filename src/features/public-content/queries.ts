@@ -8,7 +8,7 @@ import { visibleCommentWhere } from "@/features/comments/visibility";
 export { publicArticleWhere } from "./visibility";
 
 // Every public surface, including storage authorization and sitemap, shares this.
-// Banned authors are hidden consistently with the existing public-profile policy.
+// Ban restricts account actions; publication visibility follows moderation status.
 const revisionCardSelect = {
   title: true, excerpt: true, coverImage: true, readingMinutes: true,
   category: { select: { name: true, slug: true } },
@@ -72,6 +72,7 @@ export async function getRelatedPublishedArticles(id: string, categorySlug: stri
   return rows.map(toCard);
 }
 export const getPublicCategories = cache(() => getPrisma().category.findMany({
+  where: { archivedAt: null },
   select: { name: true, slug: true, description: true }, orderBy: { name: "asc" }, take: 200,
 }));
 export const getPublicCategory = cache((slug: string) => slug.length > 200 ? Promise.resolve(null) : getPrisma().category.findUnique({

@@ -98,7 +98,7 @@ describe("real database authentication", () => {
     await expect(requireAuth(signedIn)).rejects.toThrow("BANNED");
     await expect(updateOwnProfile({ ...profile, name: "Blocked" }, signedIn)).rejects.toThrow("BANNED");
     expect((await request("/sign-in/email", { email: emails[0], password })).status).toBe(403);
-    expect(await getPublicProfile(profile.username)).toBeNull();
+    expect(await getPublicProfile(profile.username)).toMatchObject({ username: profile.username });
     await prisma.user.update({ where: { id: user.id }, data: { isBanned: false } });
     const logout = await request("/sign-out", {}, signedIn.get("cookie")!);
     expect(logout.status).toBe(200);
