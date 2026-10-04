@@ -3,8 +3,8 @@
 Read PROJECT_SPEC.md before every development phase. It is the source of truth
 for scope, architecture, security, business rules, and design direction.
 
-PHASE 1–7 are complete. PHASE 8 (Administration, Reports & Analytics) is authorized.
-Do not start PHASE 9 or later without a separate user instruction. Preserve
+PHASE 1–8 are complete. PHASE 9 (Quality, Accessibility & Polish) is authorized.
+Do not start PHASE 10 or later without a separate user instruction. Preserve
 existing migrations and article/revision publication constraints. Do not add
 email/realtime notifications, queues, deployment or advanced BI.
 

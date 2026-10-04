@@ -17,9 +17,9 @@ export function ImageUpload({ articleId, label, disabled, onUpload, onBusy }: {
         try {
           const response = await fetch(`/api/articles/${articleId}/images`, { method: "POST", headers: { "Content-Type": file.type }, body: file });
           const result: { src?: string; message?: string } = await response.json();
-          if (!response.ok || !result.src) throw new Error(result.message ?? "Загрузка не удалась.");
+          if (!response.ok || !result.src) { setError(result.message ?? "Не удалось загрузить изображение. Попробуйте ещё раз."); return; }
           onUpload(result.src);
-        } catch (error) { setError(error instanceof Error ? error.message : "Не удалось загрузить изображение."); }
+        } catch { setError("Не удалось связаться с сервером. Проверьте соединение и повторите загрузку."); }
         finally { setBusy(false); onBusy(false); }
       }} />
     {busy && <p role="status" className="text-sm text-muted-foreground">Загружаем изображение…</p>}

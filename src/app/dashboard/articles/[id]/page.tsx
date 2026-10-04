@@ -20,15 +20,16 @@ export default async function ArticleHistoryPage({ params, searchParams }: { par
   const { article } = result, latest = article.revisions[0];
   return <main id="main-content" tabIndex={-1} className="page-container py-12 sm:py-16"><PrivatePageLifecycle /><div className="mx-auto max-w-reading">
     <Link href="/dashboard/articles" className="text-sm text-primary">← Мои статьи</Link>
-    <p className="eyebrow mb-3 mt-10 text-muted-foreground">История вашей публикации</p><h1 className="mb-6 break-words font-editorial text-3xl sm:text-4xl">{latest?.title || "Без названия"}</h1>
+    <p className="eyebrow mb-3 mt-10 text-muted-foreground">История вашей публикации</p><h1 className="mb-6 wrap-anywhere font-editorial text-3xl sm:text-4xl">{latest?.title || "Без названия"}</h1>
     <WorkflowStatus status={article.status} publishedRevisionId={article.publishedRevisionId} revision={latest} />
     {article.publishedAt && <p className="mt-3 text-xs text-muted-foreground">Первая публикация: {formatDate(article.publishedAt)}</p>}
     <div className="my-8 flex flex-wrap gap-3"><ArticleWorkflowActions articleId={id} status={article.status} publishedRevisionId={article.publishedRevisionId} revision={latest} /></div>
+    {article.status === "PUBLISHED" && article.slug && <Link href={`/articles/${article.slug}`} className="mb-8 inline-flex min-h-11 items-center text-sm text-primary underline underline-offset-4">Открыть опубликованную статью →</Link>}
     <h2 className="mb-5 font-editorial text-2xl">Все версии</h2>
     <ol className="border-t border-border">{result.revisions.map((revision) => <li key={revision.id} id={`revision-${revision.id}`} className="scroll-mt-6 space-y-3 border-b border-border py-6">
       <div className="flex flex-wrap justify-between gap-3"><h3 className="font-medium">Версия {revision.version} · {revisionLabels[revision.status]}</h3>{revision.id === article.publishedRevisionId && <span className="text-xs text-primary">Текущая опубликованная версия</span>}</div>
-      <p className="break-words text-sm">{revision.title || "Без названия"}</p><p className="text-xs text-muted-foreground">Создана {formatDate(revision.createdAt)}{revision.submittedAt && ` · Отправлена ${formatDate(revision.submittedAt)}`}{revision.reviewedAt && ` · Решение ${formatDate(revision.reviewedAt)}`}</p>
-      {revision.status === "REJECTED" && <p className="whitespace-pre-wrap break-words border-l-2 border-primary pl-3 text-sm">Причина: {revision.rejectionReason}</p>}
+      <p className="wrap-anywhere text-sm">{revision.title || "Без названия"}</p><p className="text-xs text-muted-foreground">Создана {formatDate(revision.createdAt)}{revision.submittedAt && ` · Отправлена ${formatDate(revision.submittedAt)}`}{revision.reviewedAt && ` · Решение ${formatDate(revision.reviewedAt)}`}</p>
+      {revision.status === "REJECTED" && <p className="whitespace-pre-wrap wrap-anywhere border-l-2 border-primary pl-3 text-sm">Причина: {revision.rejectionReason}</p>}
     </li>)}</ol>
     <nav aria-label="Страницы истории" className="mt-8 flex justify-between text-sm">{result.page > 1 ? <Link href={`?page=${result.page - 1}`}>← Назад</Link> : <span />}{result.hasNext && <Link href={`?page=${result.page + 1}`}>Далее →</Link>}</nav>
   </div></main>;

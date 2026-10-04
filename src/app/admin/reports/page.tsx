@@ -1,10 +1,11 @@
+import { fieldClass } from "@/components/ui/form-field";
 import Link from "next/link";
 import { requirePageModerator } from "@/lib/auth/guards";
 import { listReports } from "@/features/reports/queries";
 import { reportReasons } from "@/features/reports/schemas";
 import { single, type QueryParams } from "@/features/admin/queries";
 import { AdminPage, Table, Pager, Empty, date } from "@/features/admin/ui";
-import { fieldClass } from "@/features/admin/forms";
+
 import { Button } from "@/components/ui/button";
 export default async function Page({ searchParams }: { searchParams: Promise<QueryParams> }) {
   await requirePageModerator("/admin/reports"); const p = await searchParams, result = await listReports(p);

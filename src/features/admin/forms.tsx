@@ -1,24 +1,9 @@
 "use client";
-import { useId, useState, useTransition, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { fieldClass } from "@/components/ui/form-field";
+import { useId } from "react";
 import { changeUserAction, articleStateAction, categoryStateAction, createCategoryAction, updateCategoryAction } from "./actions";
 import { resolveReportAction } from "@/features/reports/actions";
-export const fieldClass = "w-full min-w-0 rounded-md border border-border bg-background px-3 py-2 text-sm";
-type Result = { ok: boolean; message?: string };
-export function MutationForm({ children, submit, label, confirmation }: { children?: ReactNode; submit: (data: FormData) => Promise<Result>; label: string; confirmation?: string }) {
-  const [pending, start] = useTransition(), [message, setMessage] = useState(""), [failed, setFailed] = useState(false);
-  return <form className="my-3 space-y-3" onSubmit={(event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    if (confirmation && !window.confirm(confirmation)) return;
-    setMessage(""); start(async () => {
-      try { const result = await submit(data); setFailed(!result.ok); setMessage(result.ok ? "Сохранено." : result.message ?? "Не удалось сохранить."); }
-      catch { setFailed(true); setMessage("Не удалось сохранить. Проверьте соединение и повторите."); }
-    });
-  }}><fieldset disabled={pending} className="min-w-0 space-y-3">{children}<Button type="submit" variant="outline" disabled={pending}>{pending ? "Сохраняем…" : label}</Button></fieldset>
-    {message && <p role={failed ? "alert" : "status"} className={`text-sm ${failed ? "text-destructive" : "text-primary"}`}>{message}</p>}
-  </form>;
-}
+import { MutationForm } from "@/components/ui/mutation-form";
 export function UserControls({ userId, name, role, banned, self }: { userId: string; name: string; role: string; banned: boolean; self: boolean }) {
   const id = useId();
   return <div className="min-w-48">

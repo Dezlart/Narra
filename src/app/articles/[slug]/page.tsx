@@ -28,8 +28,8 @@ export default async function ArticlePage({ params, searchParams }: Props) {
     <article>
       <header className="mx-auto max-w-4xl">
         {article.category && <Link href={`/categories/${article.category.slug}`} className="text-sm text-primary hover:underline">{article.category.name}</Link>}
-        <h1 className="mt-5 break-words font-editorial text-[clamp(2rem,4.5vw,3.7rem)] leading-[1.15] tracking-tight">{article.title}</h1>
-        <p className="mt-6 break-words text-lg leading-8 text-muted-foreground">{article.excerpt}</p>
+        <h1 className="mt-5 wrap-anywhere font-editorial text-[clamp(2rem,4.5vw,3.7rem)] leading-[1.15] tracking-tight">{article.title}</h1>
+        <p className="mt-6 wrap-anywhere text-lg leading-8 text-muted-foreground">{article.excerpt}</p>
         <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3"><AuthorLink author={article.author} /><span className="text-xs text-muted-foreground"><PublicationDate date={article.publishedAt} /></span><span className="text-xs text-muted-foreground">≈ {article.readingMinutes} мин чтения</span></div>
         <Suspense fallback={<p role="status" className="mt-7 text-sm text-muted-foreground">Загружаем реакции…</p>}><ArticleSocial articleId={article.id} path={`/articles/${article.slug}`} /></Suspense>
       </header>

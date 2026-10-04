@@ -17,8 +17,15 @@ async function setFollowing(input: unknown, desired: boolean, requestHeaders?: H
     const where = { followerId: actor.id, followingId: target.id };
     if (desired) {
       const created = await tx.follow.createMany({ data: [where], skipDuplicates: true });
-      if (created.count) await createNotification(tx, { recipientId: target.id, actorId: actor.id,
-        type: "NEW_FOLLOWER", eventKey: `follow:${randomUUID()}` });
+      if (created.count) {
+        // The actor lock serializes this count across instances. Unfollow cannot
+        // erase the notification history and bypass the rolling rate limit.
+        if (await tx.notification.count({ where: { actorId: actor.id, type: "NEW_FOLLOWER", createdAt: { gte: new Date(Date.now() - 60000) } } }) >= 10) {
+          throw new SocialError("RATE_LIMIT", "Не более 10 новых подписок в минуту. Попробуйте немного позже.");
+        }
+        await createNotification(tx, { recipientId: target.id, actorId: actor.id,
+          type: "NEW_FOLLOWER", eventKey: `follow:${randomUUID()}` });
+      }
     }
     else await tx.follow.deleteMany({ where });
   }, socialTransactionOptions);

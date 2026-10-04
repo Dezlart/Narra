@@ -1,8 +1,9 @@
+import { fieldClass } from "@/components/ui/form-field";
 import Link from "next/link";
 import { requirePageAdmin } from "@/lib/auth/guards";
 import { listAdminArticles, single, type QueryParams } from "@/features/admin/queries";
 import { AdminPage, Table, Pager, Empty, date } from "@/features/admin/ui";
-import { fieldClass } from "@/features/admin/forms";
+
 import { Button } from "@/components/ui/button";
 export default async function Page({ searchParams }: { searchParams: Promise<QueryParams> }) {
   await requirePageAdmin("/admin/articles"); const p = await searchParams, result = await listAdminArticles(p);

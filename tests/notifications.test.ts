@@ -44,6 +44,12 @@ describe("notification boundary and contextual privacy", () => {
     expect(mock.notification.count).toHaveBeenCalledWith({ where: { recipientId: "me", readAt: null } });
     expect(mock.notification.findMany).not.toHaveBeenCalled();
   });
+  it("does not fetch contextual relations for an empty notification page", async () => {
+    expect((await getOwnNotifications()).items).toEqual([]);
+    expect(mock.article.findMany).not.toHaveBeenCalled();
+    expect(mock.articleRevision.findMany).not.toHaveBeenCalled();
+    expect(mock.comment.findMany).not.toHaveBeenCalled();
+  });
   it("bounds pagination and orders notifications by timestamp then ID", async () => {
     await getOwnNotifications(2);
     expect(mock.notification.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { recipientId: "me" }, skip: 20, take: 21, orderBy: [{ createdAt: "desc" }, { id: "desc" }] }));

@@ -1,7 +1,8 @@
+import { fieldClass } from "@/components/ui/form-field";
 import { requirePageAdmin } from "@/lib/auth/guards";
 import { listUsers, single, type QueryParams } from "@/features/admin/queries";
 import { AdminPage, Table, Pager, Empty, date } from "@/features/admin/ui";
-import { UserControls, fieldClass } from "@/features/admin/forms";
+import { UserControls } from "@/features/admin/forms";
 import { Button } from "@/components/ui/button";
 export default async function Page({ searchParams }: { searchParams: Promise<QueryParams> }) {
   const actor = await requirePageAdmin("/admin/users"), p = await searchParams;

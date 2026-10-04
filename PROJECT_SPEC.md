@@ -1,8 +1,34 @@
 # Narra
 
-> PHASE 1–7 завершены и зафиксированы. Текущая разрешённая работа: PHASE 8 — Administration, Reports & Analytics.
-> PHASE 9 и последующие этапы требуют отдельного задания.
+> PHASE 1–8 завершены и зафиксированы. PHASE 9 — Quality, Accessibility & Polish выполнена в working tree для review; проверки и ограничения — PHASE9_REPORT.md.
+> PHASE 10 и последующие этапы требуют отдельного задания.
 > Решения PHASE 8 ниже имеют приоритет над историческими заметками прежних фаз.
+
+## Решения PHASE 9 (2–4 октября 2026)
+
+- Publication lifecycle, schema и все восемь SQL migrations сохранены.
+- Public/read-only RichText оставляет H1 странице; source H1–H3 отображаются
+  начиная с H2 без пропусков уровней. Визуальный уровень сохранён отдельно.
+  JSON approved revisions не переписывается. Tiptap продолжает редактировать
+  исходные уровни; несогласованный outline внутри author document возможен.
+- Навигация остаётся Server Component. Маленький Disclosure отвечает за
+  Escape/outside/blur dismissal, focus return и закрытие меню после перехода.
+- Общая MutationForm вынесена из admin в components/ui: публичная жалоба не
+  импортирует административные формы. Неиспользуемое presentation demo удалено.
+- Все даты/время отображаются с явной UTC timezone. Error boundary использует
+  Next.js 16.3 retry() с refetch; global-error закрывает ошибки root layout.
+- Новые Follow transitions: максимум 10/60 секунд на actor. Под существующим
+  ordered User lock считается история NEW_FOLLOWER; превышение откатывает и Follow,
+  и Notification. Unfollow не сбрасывает лимит, идемпотентный retry его не расходует.
+  Это закрывает notification spam через follow/unfollow, без новой инфраструктуры.
+- Owner article list и moderation queue используют общий page normalization/limit
+  1000. Переход к точной собственной revision через notification сохраняется.
+- Playwright и @axe-core/playwright добавлены только в dev dependencies.
+- Tiptap setEditable вызывается с emitUpdate=false: открытие вкладки и смена
+  disabled state не являются редактированием и не должны инициировать autosave.
+  Fixtures используют реальную development БД и удаляют только собственные записи.
+  Проверка недоступности БД запускает отдельный процесс с closed loopback port;
+  .env и настоящая БД не изменяются. Email/realtime/queues/deployment не добавлены.
 
 ## Принятые решения PHASE 8 (1 октября 2026)
 

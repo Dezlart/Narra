@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TiptapImage from "@tiptap/extension-image";
@@ -16,17 +16,21 @@ export function TiptapEditor({ initialContent, onChange, articleId, uploadEnable
   initialContent: RichNode; onChange: (content: RichNode) => void; articleId: string; uploadEnabled: boolean; uploading: boolean; onBusy: (busy: boolean) => void; disabled?: boolean;
 }) {
   const [linkOpen, setLinkOpen] = useState(false), [url, setUrl] = useState(""), [linkError, setLinkError] = useState("");
+  const linkInput = useRef<HTMLInputElement>(null), linkTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (linkOpen) linkInput.current?.focus(); }, [linkOpen]);
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [StarterKit.configure({ heading: { levels: [1, 2, 3] }, underline: false, strike: false,
       link: { openOnClick: false, isAllowedUri: safeLink, HTMLAttributes: { target: "_blank", rel: "noopener noreferrer nofollow" } } }), SafeImage.configure({ allowBase64: false })],
     content: initialContent,
-    editorProps: { attributes: { class: "article-prose min-h-96 p-5 outline-none sm:p-10", role: "textbox", "aria-label": "Текст статьи", "aria-multiline": "true" } },
+    editorProps: { attributes: { class: "article-prose min-h-96 p-5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary sm:p-10", role: "textbox", "aria-label": "Текст статьи", "aria-multiline": "true" } },
     // ProseMirror attrs have a null prototype. Normalize to plain JSON before
     // React Server Actions serialization (otherwise Flight sends temporary refs).
     onUpdate: ({ editor }) => onChange(JSON.parse(JSON.stringify(editor.getJSON())) as RichNode),
   });
-  useEffect(() => { editor?.setEditable(!disabled); }, [editor, disabled]);
+  // Changing editability is not a document edit. Emitting update here would
+  // autosave normalized JSON on mount and spuriously conflict with another tab.
+  useEffect(() => { editor?.setEditable(!disabled, false); }, [editor, disabled]);
   const selectedState = useEditorState({ editor, selector: ({ editor }) => editor ? {
     bold: editor.isActive("bold"), italic: editor.isActive("italic"), bullet: editor.isActive("bulletList"), ordered: editor.isActive("orderedList"), quote: editor.isActive("blockquote"), code: editor.isActive("codeBlock"), link: editor.isActive("link"),
     heading: [1, 2, 3].find((level) => editor.isActive("heading", { level })) ?? 0,
@@ -53,16 +57,16 @@ export function TiptapEditor({ initialContent, onChange, articleId, uploadEnable
         <option value={0}>Обычный текст</option><option value={1}>Заголовок 1</option><option value={2}>Заголовок 2</option><option value={3}>Заголовок 3</option>
       </select>
       {controls.map(({ label, icon: Icon, active, run }) => <Button key={label} type="button" variant={active ? "secondary" : "ghost"} size="icon" aria-label={label} title={label} aria-pressed={active} onClick={run}><Icon /></Button>)}
-      <Button type="button" size="icon" variant={state.link ? "secondary" : "ghost"} aria-label="Добавить ссылку" aria-expanded={linkOpen} onClick={() => { setUrl(String(editor.getAttributes("link").href ?? "")); setLinkOpen(!linkOpen); }}><LinkIcon /></Button>
+      <Button ref={linkTrigger} type="button" size="icon" variant={state.link ? "secondary" : "ghost"} aria-label="Добавить ссылку" aria-expanded={linkOpen} aria-controls="article-link-form" onClick={() => { setUrl(String(editor.getAttributes("link").href ?? "")); setLinkOpen(!linkOpen); }}><LinkIcon /></Button>
       <Button type="button" size="icon" variant="ghost" aria-label="Убрать ссылку" disabled={!state.link} onClick={() => editor.chain().focus().unsetLink().run()}><Unlink /></Button>
       <Button type="button" size="icon" variant="ghost" aria-label="Отменить" disabled={!state.undo} onClick={() => editor.chain().focus().undo().run()}><Undo2 /></Button>
       <Button type="button" size="icon" variant="ghost" aria-label="Повторить" disabled={!state.redo} onClick={() => editor.chain().focus().redo().run()}><Redo2 /></Button>
     </div>
-    {linkOpen && <form className="space-y-2 border-b border-border p-4" onSubmit={(event) => {
+    {linkOpen && <form id="article-link-form" className="space-y-2 border-b border-border p-4" onKeyDown={(event) => { if (event.key === "Escape") { setLinkOpen(false); linkTrigger.current?.focus(); event.stopPropagation(); } }} onSubmit={(event) => {
       event.preventDefault();
       if (!safeLink(url)) { setLinkError("Введите полную ссылку https://, http:// или mailto:."); return; }
       editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run(); setLinkOpen(false); setLinkError("");
-    }}><label htmlFor="article-link" className="text-sm">Адрес ссылки для выделенного текста</label><div className="flex flex-wrap gap-2"><input id="article-link" value={url} onChange={(e) => setUrl(e.target.value)} className={`${inputClass} min-w-0 flex-1`} placeholder="https://" /><Button type="submit">Применить</Button></div>{linkError && <p role="alert" className="text-sm text-destructive">{linkError}</p>}</form>}
+    }}><label htmlFor="article-link" className="text-sm">Адрес ссылки для выделенного текста</label><div className="flex flex-wrap gap-2"><input ref={linkInput} id="article-link" value={url} onChange={(e) => setUrl(e.target.value)} aria-invalid={Boolean(linkError)} aria-describedby={linkError ? "article-link-error" : undefined} className={`${inputClass} min-w-0 flex-1`} placeholder="https://" /><Button type="submit">Применить</Button><Button type="button" variant="ghost" onClick={() => { setLinkOpen(false); linkTrigger.current?.focus(); }}>Отмена</Button></div>{linkError && <p id="article-link-error" role="alert" className="text-sm text-destructive">{linkError}</p>}</form>}
     <EditorContent editor={editor} />
     <div className="border-t border-border p-4 sm:px-10"><ImageUpload articleId={articleId} label="Изображение в текст" disabled={!uploadEnabled || uploading} onBusy={onBusy} onUpload={(src) => editor.chain().focus().setImage({ src, alt: "" }).run()} /></div>
   </div>;

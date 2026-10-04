@@ -1,15 +1,12 @@
 # Narra
 
 Платформа пользовательских статей с обязательной модерацией и публикацией
-отдельных одобренных версий. Завершены **PHASE 1 — Foundation** и
-**PHASE 2 — Authentication, Users & RBAC**, реализована
-**PHASE 3 — Articles, Rich-Text Editor & Drafts** и
-**PHASE 4 — Moderation & Publishing** и **PHASE 5 — Public Content & Discovery**.
-Реализованы **PHASE 6 — Social Features** и **PHASE 7 — Personalized Feed & Notifications**.
-Реализована **PHASE 8 — Administration, Reports & Analytics**. PHASE 9 требует отдельного задания.
-Полная спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md). Перед каждой новой
-фазой сначала прочитайте этот файл.
-Результаты PHASE 8: [PHASE8_REPORT.md](PHASE8_REPORT.md); история предыдущего этапа: [PHASE7_REPORT.md](PHASE7_REPORT.md).
+отдельных одобренных версий. PHASE 1–8 завершены и зафиксированы.
+**PHASE 9: Quality, Accessibility & Polish** выполнена и оставлена в working tree
+для review, с ограничениями из PHASE9_REPORT.md (включая dev-only dependency advisory).
+PHASE 10 требует отдельного задания, deployment не выполняется.
+Спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md).
+Отчёты: [PHASE8_REPORT.md](PHASE8_REPORT.md), [PHASE9_REPORT.md](PHASE9_REPORT.md).
 
 ## Что есть сейчас
 
@@ -23,7 +20,7 @@
 - Настоящие статьи/черновики, Tiptap, autosave, категории/теги и private Blob images.
 - Очередь модерации, approve/reject и публикация выбранной revision в БД.
 - Публичные страницы используют исключительно текущую опубликованную версию.
-  Демокомпоненты PHASE 1 сохранены как неиспользуемая история дизайна.
+  Неиспользуемые демонстрационные компоненты PHASE 1 удалены в PHASE 9.
 - Лайки, закладки, комментарии с одним уровнем ответов, подписки на авторов;
   реальные счётчики и базовая модерация комментариев.
 - Персональная лента подписок и постоянные уведомления в PostgreSQL.
@@ -92,9 +89,8 @@ Prisma 7 читает URL из `prisma.config.ts`, а приложение пе�
 
 ```text
 src/app/                   auth/profile/dashboard routes, layout, стили, состояния
-src/app/(home)/            прежняя главная и её loading boundary; URL остаётся /
+src/app/(home)/            публичная лента и её loading boundary; URL остаётся /
 src/components/layout/     header и footer
-src/components/home/       исключительно визуальное демо и его данные
 src/components/ui/         минимальные компоненты shadcn/ui
 src/features/auth/         Zod schemas, permissions, auth UI
 src/features/users/        profile schema, action, service, UI
@@ -188,11 +184,12 @@ npm run test:admin:integration
 ADMIN в этих тестах никому не назначается. Next.js server для этих тестов не нужен.
 Тесты статей тоже используют настоящую development PostgreSQL, создают свои
 случайные аккаунты, статьи, категорию и теги. Синтетические APPROVED/PENDING
-fixtures нужны для проверки неизменяемости; endpoint публикации отсутствует.
+fixtures нужны для проверки неизменяемости; настоящий workflow публикации
+покрыт отдельными moderation и quality tests.
 Cleanup удаляет только записи данного запуска. Не запускайте интеграционные
 тесты с production DATABASE_URL.
-Playwright используется через доступный браузерный инструмент без установки
-отдельного browser/test framework в проект. Полный список результатов — PHASE2_REPORT.md.
+Playwright и @axe-core/playwright — локальные dev dependencies. Браузерные
+проверки качества описаны ниже; они требуют production server и development БД.
 
 ## Совместимость зависимостей
 
@@ -447,7 +444,7 @@ OG cover добавляется при настроенном Blob. Без SITE_
 не выдумываются, sitemap пустой, robots запрещает индексирование среды.
 Внутренний поиск имеет noindex/follow. Sitemap содержит только публичные URL,
 исключает dashboard/admin/editor/auth и приватные версии. Профили в sitemap —
-только активные авторы с публикациями. Лимиты первой реализации: 10000 статей,
+авторы с публичными публикациями, включая заблокированных авторов. Лимиты первой реализации: 10000 статей,
 10000 тегов, 10000 профилей, 200 категорий; перед превышением требуется sharding.
 
 `npm run test:public:integration` проверяет настоящий publish/update workflow,
@@ -494,7 +491,9 @@ placeholder. Ответы доступны, новые ответы к тако�
 идемпотентными. Конкурентные отправки комментария используют UUID requestId и
 блокировку строки автора в PostgreSQL; действует интервал 5 секунд, максимум 10
 сообщений в минуту, запрет немедленного повтора текста в той же ветке. Удаление
-не сбрасывает лимит. Новый requestId не позволяет обойти частоту отправки.
+не сбрасывает лимит. Новый requestId не позволяет обойти частоту отправки. Новые подписки ограничены
+10 за скользящую минуту на аккаунт. Отписка не сбрасывает лимит; повтор уже
+существующей подписки не расходует его. Проверка сериализована в PostgreSQL.
 
 UI обновляется после подтверждения Server Action через revalidatePath. Персональные
 состояния не кэшируются между пользователями. Гостевые кнопки ведут на login с
@@ -517,7 +516,7 @@ npm run test:social:integration
 
 Без NARRA_BROWSER_QA браузерный тест явно skipped. Cookies тестовых сессий передаются
 через stdin дочернему процессу, не сохраняются. Скриншоты — в игнорируемой
-`.playwright-mcp`. Новые runtime/dev зависимости не установлены.
+`.playwright-mcp`. Playwright устанавливается как dev dependency; приложение не включает его в client bundle.
 
 ## Лента подписок и уведомления
 
@@ -647,7 +646,52 @@ publication trend учитывает первые публикации, даже
 PLAYWRIGHT_MODULE и CHROMIUM_EXECUTABLE, как для social QA выше. Credentials идут
 через stdin; screenshots игнорируются Git. Без переменной browser case явно skipped.
 
+## Проверки качества (PHASE 9)
+
+Установите браузеры один раз:
+
+```sh
+npx playwright install chromium firefox webkit
+npm run build
+npm run start
+```
+
+В другом терминале, с той же **development** БД:
+
+```sh
+npm run test:quality:integration
+```
+
+Тест создаёт только собственные случайные аккаунты, категории и публикации.
+Пароли/cookies передаются дочернему процессу через stdin, не пишутся в отчёт.
+Он проверяет 29 экранов на 1440/1024/768/390/320 px, axe accessibility,
+smoke Chromium/Firefox/WebKit и настоящий путь регистрации/редактора/модерации/
+социальных действий. Также проверяются offline autosave, конфликт двух вкладок,
+изолированный процесс с недоступной БД (порт 3002) и отменённые запросы.
+Порты 3000 и 3002 должны быть доступны. QA_BASE_URL может изменить адрес основного
+сервера; проверка отказа БД использует отдельный локальный порт 3002.
+Сценарии очищают только свои fixtures; логи/скриншоты в `.playwright-mcp` исключены из Git.
+Не запускайте их против production.
+
+Для диагностики можно отдельно выбрать NARRA_QUALITY_MODE=audit (маршруты/axe/smoke)
+или journey (полный пользовательский путь); итоговый acceptance запускается без режима.
+Существующие social/notifications/admin browser harness также работают с локальным
+Playwright, без PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE. Старые overrides поддерживаются.
+NARRA_BROWSER_QA относится к social harness. Опциональный внешний public harness
+использует отдельную NARRA_PUBLIC_BROWSER_QA, чтобы совместный regression запуск
+не смешивал разные форматы fixtures.
+Автоматический axe — дополнение к keyboard и visual audit, не сертификат WCAG.
+Точная область фактических проверок и ограничения — в PHASE9_REPORT.md.
+На 4 октября 2026 полный npm audit сообщает 8 high по одной dev-only advisory
+braces без patched release; production-only audit — 0. Несовместимые downgrades
+и force fix не применялись. Подробности и upstream ссылка приведены в отчёте.
+
+Все timestamps интерфейса имеют явную UTC timezone. Публичный renderer оставляет
+H1 заголовку страницы, нормализует уровни внутренних заголовков и сохраняет исходный
+JSON и визуальные размеры. Редактор показывает исходные уровни автора.
+Ошибка страницы использует Next.js retry(), чтобы повторно запросить данные.
+
 ## Следующий этап
 
-Только по отдельному заданию: PHASE 9 — quality, responsive polish, accessibility
-и расширение проверок. PHASE 9 и PHASE 10 не начаты, deployment не выполняется.
+Только по отдельному заданию: PHASE 10 — финальная подготовка окружения,
+production QA и документация развёртывания. PHASE 10 не начата.

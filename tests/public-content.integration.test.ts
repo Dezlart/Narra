@@ -57,8 +57,8 @@ afterAll(async () => {
   } finally { await db.$disconnect(); }
 }, 120000);
 function browser(stage: string) {
-  if (process.env.NARRA_BROWSER_QA) {
-    const output = execFileSync(process.execPath, [process.env.NARRA_BROWSER_QA, JSON.stringify({ stage, slug, articleId, imageId: stage === "updated" ? imageB : imageA, username: usernames[0], category: categories[stage === "updated" ? 1 : 0].slug, tag: tagSlug, title: stage === "updated" ? privateTitle : title, privateTitle, run })], { encoding: "utf8", timeout: 180000 });
+  if (process.env.NARRA_PUBLIC_BROWSER_QA) {
+    const output = execFileSync(process.execPath, [process.env.NARRA_PUBLIC_BROWSER_QA, JSON.stringify({ stage, slug, articleId, imageId: stage === "updated" ? imageB : imageA, username: usernames[0], category: categories[stage === "updated" ? 1 : 0].slug, tag: tagSlug, title: stage === "updated" ? privateTitle : title, privateTitle, run })], { encoding: "utf8", timeout: 180000 });
     console.log(output.trim());
   }
 }

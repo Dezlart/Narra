@@ -1,5 +1,6 @@
 "use client";
 import { ReportButton } from "@/features/reports/report-button";
+import { formatDateTime } from "@/lib/dates";
 import Link from "next/link";
 import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -45,9 +46,9 @@ function CommentBody({ item, viewer, path, afterDelete }: { item: PublicComment;
   return <div className="min-w-0" id={`comment-${item.id}`}>
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       {item.author && (item.author.username ? <Link className="break-all text-sm font-medium text-foreground hover:text-primary" href={`/profile/${item.author.username}`}>{item.author.name}</Link> : <span>{item.author.name}</span>)}
-      <time dateTime={item.createdAt}>{new Intl.DateTimeFormat("ru", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(item.createdAt))} UTC</time>
+      <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
     </div>
-    <p className={`mt-3 whitespace-pre-wrap break-words text-sm leading-7 ${item.status === "visible" ? "" : "italic text-muted-foreground"}`}>{item.content ?? (item.status === "deleted" ? "Комментарий удалён автором." : "Комментарий скрыт.")}</p>
+    <p className={`mt-3 whitespace-pre-wrap wrap-anywhere text-sm leading-7 ${item.status === "visible" ? "" : "italic text-muted-foreground"}`}>{item.content ?? (item.status === "deleted" ? "Комментарий удалён автором." : "Комментарий скрыт.")}</p>
     {item.status === "visible" && !item.canDelete && <ReportButton targetId={item.id} targetType="COMMENT" viewer={viewer} path={path} />}
     {item.canDelete && <div className="mt-2">
       {!confirm ? <Button variant="ghost" onClick={() => setConfirm(true)}>Удалить</Button> : <div className="flex flex-wrap items-center gap-2"><span className="text-xs">Удалить текст без возможности восстановления?</span><Button variant="destructive" disabled={pending} onClick={() => {

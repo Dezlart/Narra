@@ -16,6 +16,7 @@ type Reader = Pick<Prisma.TransactionClient, "article" | "articleRevision" | "co
 // Bounded batch queries apply authorization before selecting contextual data.
 // No draft content, comment bodies, email, or tokens are ever fetched here.
 async function present(db: Reader, rows: Row[], recipientId: string) {
+  if (rows.length === 0) return [];
   const articleIds = rows.flatMap((row) => row.articleId ? [row.articleId] : []);
   const revisionIds = rows.filter((row) => row.type === "ARTICLE_APPROVED" || row.type === "ARTICLE_REJECTED")
     .flatMap((row) => row.revisionId ? [row.revisionId] : []);

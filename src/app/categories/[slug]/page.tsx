@@ -22,5 +22,5 @@ async function Feed({ slug, searchParams }: { slug: string; searchParams: Search
 }
 export default async function CategoryPage({ params, searchParams }: Props) {
   const value = await category(params);
-  return <main id="main-content" tabIndex={-1} className="page-container py-12"><p className="eyebrow text-primary">Тема журнала</p><h1 className="my-5 break-words font-editorial text-4xl">{value.name}</h1>{value.description && <p className="mb-8 max-w-2xl leading-7 text-muted-foreground">{value.description}</p>}<div className="mt-10"><Suspense fallback={<FeedSkeleton />}><Feed slug={value.slug} searchParams={searchParams} /></Suspense></div></main>;
+  return <main id="main-content" tabIndex={-1} className="page-container py-12"><p className="eyebrow text-primary">Тема журнала</p><h1 className="my-5 wrap-anywhere font-editorial text-4xl">{value.name}</h1>{value.description && <p className="mb-8 max-w-2xl leading-7 text-muted-foreground">{value.description}</p>}<div className="mt-10"><Suspense fallback={<FeedSkeleton />}><Feed slug={value.slug} searchParams={searchParams} /></Suspense></div></main>;
 }

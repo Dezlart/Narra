@@ -8,7 +8,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
   const { id } = await params; await requirePageAdmin(`/admin/articles/${id}`);
   const result = await getAdminArticle(id, (await searchParams).page); if (!result) notFound(); const a = result.article;
   return <AdminPage title={a.publishedRevision?.title || a.revisions[0]?.title || "История статьи"} description="История доступна только ADMIN. Текст чужих черновиков нельзя менять через редактор.">
-    <p>{a.status} · Автор: {a.author.name} {a.author.username && <Link className="text-primary" href={`/profile/${a.author.username}`}>@{a.author.username}</Link>}</p>
+    <p>{a.status} · Автор: {a.author.name} {a.author.username && <Link className="text-primary underline underline-offset-4" href={`/profile/${a.author.username}`}>@{a.author.username}</Link>}</p>
     <p className="mt-3">Опубликованная версия: {a.publishedRevision?.version ?? "—"} · {a.publishedRevision?.status ?? "Нет"}</p>
     {a.status === "PUBLISHED" && a.slug && <Link className="my-3 inline-block text-primary underline" href={`/articles/${a.slug}`}>Открыть публичную статью</Link>}
     {a.publishedRevision?.status === "APPROVED" && <ArticleStateControl articleId={a.id} archived={a.status === "ARCHIVED"} />}

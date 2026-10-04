@@ -3,7 +3,8 @@ import type { ArticleRevisionStatus, ArticleStatus } from "@/generated/prisma/en
 import { Button } from "@/components/ui/button";
 import { CreateDraftButton, DeleteDraftButton } from "./draft-buttons";
 export const revisionLabels = { DRAFT: "Черновик", PENDING: "На модерации", APPROVED: "Одобрено", REJECTED: "Отклонено" };
-export function formatDate(value: Date | null) { return value?.toLocaleString("ru-RU", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) ?? "—"; }
+export { formatDateTime as formatDate } from "@/lib/dates";
+import { formatDateTime as formatDate } from "@/lib/dates";
 type RevisionSummary = { id: string; status: ArticleRevisionStatus; editVersion: number; submittedAt: Date | null; reviewedAt: Date | null; rejectionReason: string | null };
 export function WorkflowStatus({ status, publishedRevisionId, revision }: { status: ArticleStatus; publishedRevisionId: string | null; revision?: RevisionSummary }) {
   const published = !!publishedRevisionId;
@@ -11,7 +12,7 @@ export function WorkflowStatus({ status, publishedRevisionId, revision }: { stat
     <p className="font-medium text-primary">{status === "ARCHIVED" ? "В архиве" : published ? "Опубликовано" : revision ? revisionLabels[revision.status] : "Нет рабочей версии"}</p>
     {published && revision && revision.id !== publishedRevisionId && <p>Новая версия: {revisionLabels[revision.status].toLowerCase()}</p>}
     {revision?.status === "PENDING" && <p className="text-muted-foreground">Отправлено {formatDate(revision.submittedAt)}. Редактирование закрыто до решения.</p>}
-    {revision?.status === "REJECTED" && <div className="max-w-prose break-words border-l-2 border-primary pl-3"><p className="text-xs text-muted-foreground">Решение от {formatDate(revision.reviewedAt)}</p><p className="mt-1 whitespace-pre-wrap">Причина: {revision.rejectionReason}</p></div>}
+    {revision?.status === "REJECTED" && <div className="max-w-prose wrap-anywhere border-l-2 border-primary pl-3"><p className="text-xs text-muted-foreground">Решение от {formatDate(revision.reviewedAt)}</p><p className="mt-1 whitespace-pre-wrap">Причина: {revision.rejectionReason}</p></div>}
   </div>;
 }
 export function ArticleWorkflowActions({ articleId, status, publishedRevisionId, revision }: { articleId: string; status: ArticleStatus; publishedRevisionId: string | null; revision?: RevisionSummary }) {

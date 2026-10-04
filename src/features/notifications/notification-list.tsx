@@ -3,6 +3,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Check, MessageCircle, UserPlus, FileCheck, FileX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/dates";
 import type { NotificationView } from "./queries";
 import { readNotificationAction, readAllNotificationsAction } from "./actions";
 
@@ -24,16 +25,16 @@ export function NotificationList({ items, onOpen }: { items: NotificationView[];
     });
   }
   return <div aria-busy={pending}>
-    {error && <p role="alert" className="mb-3 break-words text-sm text-destructive">{error}</p>}
+    {error && <p role="alert" className="mb-3 wrap-anywhere text-sm text-destructive">{error}</p>}
     {items.length ? <ul className="divide-y divide-border">{items.map((item) => {
       const Icon = icons[item.type];
       return <li key={item.id} data-notification-id={item.id} className="flex min-w-0 gap-3 py-4">
         <Icon className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          {item.href ? <button disabled={pending} onClick={() => read(item, true)} className="w-full cursor-pointer break-words text-left text-sm leading-6 hover:underline disabled:opacity-60">{item.text}</button>
-            : <p className="break-words text-sm leading-6">{item.text}</p>}
+          {item.href ? <button disabled={pending} onClick={() => read(item, true)} className="w-full cursor-pointer wrap-anywhere text-left text-sm leading-6 hover:underline disabled:opacity-60">{item.text}</button>
+            : <p className="wrap-anywhere text-sm leading-6">{item.text}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", dateStyle: "short", timeStyle: "short" })}</time>
+            <time dateTime={item.createdAt}>{formatDateTime(item.createdAt)}</time>
             <span className={item.unread ? "font-medium text-primary" : ""}>{item.unread ? "Новое" : "Прочитано"}</span>
           </div>
           {item.unread && <button disabled={pending} onClick={() => read(item, false)} className="mt-1 inline-flex min-h-9 items-center gap-1 text-xs text-primary underline underline-offset-4 disabled:opacity-60"><Check className="size-3" aria-hidden="true" />Отметить прочитанным</button>}

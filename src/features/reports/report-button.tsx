@@ -1,7 +1,8 @@
 "use client";
+import { fieldClass } from "@/components/ui/form-field";
 import Link from "next/link";
 import { useId, useState } from "react";
-import { MutationForm, fieldClass } from "@/features/admin/forms";
+import { MutationForm } from "@/components/ui/mutation-form";
 import { createReportAction } from "./actions";
 import { reportReasons } from "./schemas";
 import type { Viewer } from "@/features/social/social-button";

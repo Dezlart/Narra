@@ -32,9 +32,9 @@ export default async function ProfilePage({ params, searchParams }: Props) {
     <div className="max-w-reading">
       <p className="eyebrow mb-6 text-primary">Сообщество Narra</p>
       <Avatar name={profile.name} large />
-      <h1 className="mt-6 break-words font-editorial text-4xl leading-tight tracking-tight sm:text-5xl">{profile.name}</h1>
+      <h1 className="mt-6 wrap-anywhere font-editorial text-4xl leading-tight tracking-tight sm:text-5xl">{profile.name}</h1>
       <p className="mt-3 break-all text-primary">@{profile.username}</p>
-      {profile.bio && <p className="mt-6 whitespace-pre-wrap break-words leading-8">{profile.bio}</p>}
+      {profile.bio && <p className="mt-6 whitespace-pre-wrap wrap-anywhere leading-8">{profile.bio}</p>}
       <p className="mt-5 text-sm text-muted-foreground">В Narra с {new Intl.DateTimeFormat("ru", { month: "long", year: "numeric", timeZone: "UTC" }).format(profile.createdAt)}</p>
       <Suspense fallback={<p role="status" className="mt-6 text-sm">Загружаем подписки…</p>}><ProfileFollow username={profile.username!} /></Suspense>
     </div>

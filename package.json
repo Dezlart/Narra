@@ -27,7 +27,8 @@
     "db:seed": "prisma db seed",
     "test:social:integration": "vitest run tests/social.integration.test.ts",
     "test:notifications:integration": "vitest run tests/notifications.integration.test.ts",
-    "test:admin:integration": "vitest run tests/administration.integration.test.ts tests/admin-protection.integration.test.ts"
+    "test:admin:integration": "vitest run tests/administration.integration.test.ts tests/admin-protection.integration.test.ts",
+    "test:quality:integration": "vitest run tests/quality.integration.test.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.6",
@@ -59,6 +60,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.13.6",
     "@types/pg": "^8.23.1",
@@ -66,6 +68,7 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.6",
+    "playwright": "^1.63.0",
     "prisma": "^7.10.0",
     "shadcn": "^4.21.0",
     "tailwindcss": "^4.3.3",

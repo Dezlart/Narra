@@ -22,13 +22,21 @@ export function AuthForm({ mode, returnTo = "/dashboard" }: { mode: "login" | "r
   const registering = mode === "register";
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     setMessage("");
+    setErrors({});
     const input = Object.fromEntries(new FormData(event.currentTarget));
     const parsed = (registering ? registrationFormSchema : signInSchema).safeParse(input);
-    if (!parsed.success) { setMessage(parsed.error.issues[0].message); return; }
+    if (!parsed.success) {
+      setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])));
+      const first = event.currentTarget.elements.namedItem(String(parsed.error.issues[0].path[0]));
+      if (first instanceof HTMLElement) first.focus();
+      setMessage("Проверьте отмеченные поля."); return;
+    }
     setPending(true);
     try {
       const result = registering
@@ -47,15 +55,15 @@ export function AuthForm({ mode, returnTo = "/dashboard" }: { mode: "login" | "r
     }
   }
 
-  return <form onSubmit={submit} className="space-y-6">
+  return <form onSubmit={submit} className="space-y-6" aria-busy={pending}>
     <fieldset disabled={pending} className="space-y-5">
       {registering && <>
-        <FormField name="name" label="Имя" autoComplete="name" required minLength={2} maxLength={80} />
-        <FormField name="username" label="Username" autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30} hint="3–30 символов: латинские буквы, цифры и подчёркивание." />
+        <FormField name="name" label="Имя" error={errors.name} autoComplete="name" required minLength={2} maxLength={80} />
+        <FormField name="username" label="Username" error={errors.username} autoComplete="username" autoCapitalize="none" spellCheck={false} required minLength={3} maxLength={30} hint="3–30 символов: латинские буквы, цифры и подчёркивание." />
       </>}
-      <FormField name="email" label="Email" type="email" autoComplete="email" autoCapitalize="none" required maxLength={254} />
-      <FormField name="password" label="Пароль" type="password" autoComplete={registering ? "new-password" : "current-password"} required minLength={registering ? 12 : 1} maxLength={128} hint={registering ? "От 12 до 128 символов." : undefined} />
-      {registering && <FormField name="confirmPassword" label="Подтвердите пароль" type="password" autoComplete="new-password" required maxLength={128} />}
+      <FormField name="email" label="Email" error={errors.email} type="email" autoComplete="email" autoCapitalize="none" required maxLength={254} />
+      <FormField name="password" label="Пароль" error={errors.password} type="password" autoComplete={registering ? "new-password" : "current-password"} required minLength={registering ? 12 : 1} maxLength={128} hint={registering ? "От 12 до 128 символов." : undefined} />
+      {registering && <FormField name="confirmPassword" label="Подтвердите пароль" error={errors.confirmPassword} type="password" autoComplete="new-password" required maxLength={128} />}
     </fieldset>
     {message && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{message}</p>}
     <Button type="submit" disabled={pending} className="w-full">

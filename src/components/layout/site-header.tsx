@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/guards";
 import { Avatar } from "@/features/users/avatar";
 import { SignOutButton } from "@/features/auth/sign-out-button";
 import { NotificationBell } from "@/features/notifications/bell";
+import { Disclosure } from "@/components/ui/disclosure";
 
 const navigation: readonly NavigationItem[] = [
   { label: "Главная", href: "/" },
@@ -28,12 +29,12 @@ export async function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
         {activeUser && <NotificationBell />}
-        {activeUser ? <details className="mobile-navigation relative">
+        {activeUser ? <Disclosure className="mobile-navigation relative">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md" aria-label="Меню аккаунта">
             <Avatar name={activeUser.name} /><span className="hidden max-w-36 truncate text-sm font-medium sm:inline">{activeUser.name}</span><ChevronDown className="size-4" aria-hidden="true" />
           </summary>
-          <nav aria-label="Аккаунт" className="absolute right-0 top-14 z-30 w-60 rounded-md border border-border bg-background p-3 shadow-lg">
-            <p className="truncate px-3 py-2 text-sm font-medium">{activeUser.name}</p>
+          <nav aria-label="Аккаунт" className="absolute right-0 top-14 z-30 max-h-[calc(100dvh-7rem)] w-60 overflow-y-auto overscroll-contain rounded-md border border-border bg-background p-3 shadow-lg">
+            <p className="wrap-anywhere px-3 py-2 text-sm font-medium">{activeUser.name}</p>
             <Link href="/dashboard" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Личный кабинет</Link>
             <Link href="/dashboard/articles" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мои статьи</Link>
             <Link href="/dashboard/analytics" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Моя аналитика</Link>
@@ -46,11 +47,11 @@ export async function SiteHeader() {
             {activeUser.username && <Link href={`/profile/${activeUser.username}`} className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мой профиль</Link>}
             <div className="mt-2 border-t border-border px-3 pt-3"><SignOutButton /></div>
           </nav>
-        </details> : <>
+        </Disclosure> : <>
           <Button asChild variant="ghost" size="sm"><Link href="/login">Войти</Link></Button>
           <Button asChild size="sm" className="hidden sm:inline-flex"><Link href="/register">Регистрация</Link></Button>
         </>}
-        <details className="mobile-navigation relative lg:hidden">
+        <Disclosure className="mobile-navigation relative lg:hidden">
           <summary className="flex size-11 cursor-pointer list-none items-center justify-center rounded-md border border-border" aria-label="Открыть меню">
             <Menu className="size-5" aria-hidden="true" />
           </summary>
@@ -58,7 +59,7 @@ export async function SiteHeader() {
             {navigation.map((item) => <Link key={item.href} href={item.href} className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">{item.label}</Link>)}
             {!activeUser && <Link href="/register" className="mt-2 block rounded-sm bg-primary px-3 py-3 text-sm text-primary-foreground sm:hidden">Регистрация</Link>}
           </nav>
-        </details>
+        </Disclosure>
         </div>
       </div>
     </header>
