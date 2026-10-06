@@ -11,5 +11,5 @@ const categories = [
 try {
   for (const category of categories) await prisma.category.upsert({ where: { slug: category.slug }, create: category, update: {} });
   console.log("Базовые категории готовы. Существующие записи сохранены.");
-} catch { console.error("Не удалось подготовить категории. Проверьте development DATABASE_URL и миграции."); process.exitCode = 1; }
+} catch { console.error("Не удалось подготовить категории. Проверьте DATABASE_URL выбранного окружения и миграции."); process.exitCode = 1; }
 finally { await prisma.$disconnect(); }

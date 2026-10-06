@@ -2,15 +2,12 @@ import "server-only";
 import type { Metadata } from "next";
 import { publicImageUrl } from "./images";
 import { storageConfigured } from "@/features/articles/images";
+import { configuredOrigin } from "@/lib/environment";
 
 /** Explicit deployment origin only; never infer it from request Host/auth URL. */
 export function siteOrigin(): string | undefined {
-  try {
-    const url = new URL(process.env.SITE_URL ?? "");
-    if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash
-      || url.hostname === "localhost" || url.hostname === "127.0.0.1") return undefined;
-    return url.origin;
-  } catch { return undefined; }
+  if (process.env.VERCEL_ENV === "preview") return undefined;
+  return configuredOrigin(process.env.SITE_URL);
 }
 export function publicMetadata(title: string, description: string, path: string): Metadata {
   const origin = siteOrigin();

@@ -1,8 +1,19 @@
 # Narra
 
-> PHASE 1–8 завершены и зафиксированы. PHASE 9 — Quality, Accessibility & Polish выполнена в working tree для review; проверки и ограничения — PHASE9_REPORT.md.
-> PHASE 10 и последующие этапы требуют отдельного задания.
+> PHASE 1–9 завершены и зафиксированы. PHASE 10 авторизована отдельным заданием.
+> Production preparation и реальные результаты deployment описаны в DEPLOYMENT.md и PHASE10_REPORT.md; следующие этапы требуют отдельного задания.
 > Решения PHASE 8 ниже имеют приоритет над историческими заметками прежних фаз.
+
+## Уточнения production architecture (PHASE 10)
+
+- Prisma 7 runtime использует pooled DATABASE_URL; CLI предпочитает DIRECT_URL той же БД.
+  Миграции применяются отдельным явным шагом, не из build/postinstall/start.
+- Runtime environment validation требует production HTTPS auth/site origin, независимые
+  auth/analytics secrets, PostgreSQL TLS и private Blob credentials. Local loopback QA
+  допускает HTTP и отсутствие Blob, но не отсутствие production analytics key.
+- Preview изолирован по DB/store/keys и принудительно noindex без production canonicals.
+- Vercel Node 24.x, стандартная Next.js integration, прежний PrismaPg и Sharp.
+  Private image proxy и publication constraints сохранены. Email/realtime/queues не добавлены.
 
 ## Решения PHASE 9 (2–4 октября 2026)
 

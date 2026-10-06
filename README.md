@@ -1,697 +1,198 @@
 # Narra
 
-Платформа пользовательских статей с обязательной модерацией и публикацией
-отдельных одобренных версий. PHASE 1–8 завершены и зафиксированы.
-**PHASE 9: Quality, Accessibility & Polish** выполнена и оставлена в working tree
-для review, с ограничениями из PHASE9_REPORT.md (включая dev-only dependency advisory).
-PHASE 10 требует отдельного задания, deployment не выполняется.
-Спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md).
-Отчёты: [PHASE8_REPORT.md](PHASE8_REPORT.md), [PHASE9_REPORT.md](PHASE9_REPORT.md).
+Платформа авторских статей: редактор с автосохранением, обязательная модерация,
+публикация одобренных версий, общение и персональная лента.
 
-## Что есть сейчас
+PHASE 1–9 зафиксированы. Подготовка PHASE 10 находится в рабочем дереве для review.
+Публичный deployment пока не подтверждён. Полные результаты и ограничения:
+[PHASE10_REPORT.md](PHASE10_REPORT.md). Спецификация: [PROJECT_SPEC.md](PROJECT_SPEC.md).
 
-- Next.js App Router, React, строгий TypeScript, Tailwind CSS 4.
-- shadcn/ui (официальный CLI, Radix Nova, только Button), Lucide.
-- Адаптивная реальная лента, страницы чтения, категории, теги, поиск,
-  навигация, состояния загрузки, ошибки и 404.
-- Prisma 7, PostgreSQL, единый ленивый серверный клиент, восемь SQL-миграций.
-- Better Auth: регистрация, вход/выход, сессии в БД; публичные профили,
-  собственные настройки и серверные guards USER/MODERATOR/ADMIN.
-- Настоящие статьи/черновики, Tiptap, autosave, категории/теги и private Blob images.
-- Очередь модерации, approve/reject и публикация выбранной revision в БД.
-- Публичные страницы используют исключительно текущую опубликованную версию.
-  Неиспользуемые демонстрационные компоненты PHASE 1 удалены в PHASE 9.
-- Лайки, закладки, комментарии с одним уровнем ответов, подписки на авторов;
-  реальные счётчики и базовая модерация комментариев.
-- Персональная лента подписок и постоянные уведомления в PostgreSQL.
+## Возможности
+
+- Регистрация, вход, профиль; роли USER / MODERATOR / ADMIN и блокировка аккаунтов.
+- Tiptap JSON, черновики, автосохранение, конфликт двух вкладок, обложки и inline images.
+- Отправка на модерацию, отклонение с причиной, одобрение, архивирование и восстановление.
+- Лента, поиск, категории, теги, страницы статей и авторов.
+- Лайки, закладки, комментарии/ответы, подписки, персональная лента и уведомления в БД.
+- Жалобы, управление пользователями/категориями/публикациями, аналитика автора и платформы.
+- Адаптивный интерфейс, клавиатурная навигация, доступные состояния ошибок/загрузки.
+
+## Стек
+
+Next.js 16 App Router, React 19, TypeScript strict, Tailwind 4, Radix/shadcn UI,
+Golos Text/Lora, Tiptap 3, Better Auth, Prisma 7 с adapter-pg, PostgreSQL (Neon),
+private Vercel Blob и Sharp. Node.js **24.x**, npm и package-lock.json.
+Точные версии закреплены lockfile; Vercel — целевая платформа размещения.
+Vitest, Playwright и axe используются только при разработке/проверках.
+Resend, realtime, очереди и внешняя BI не подключены.
+
+## Архитектура
+
+Модульный монолит: Server Components по умолчанию, Server Actions для изменений,
+Route Handlers для auth и изображений. PostgreSQL — единственный источник данных;
+демо-данные не заменяют backend.
+
+```text
+src/app/           публичные страницы, кабинет, администрация, API
+src/features/      auth, users, articles, moderation, public-content,
+                   social features, notifications, reports, analytics
+src/lib/           Prisma singleton, env validation, auth/guards
+prisma/            schema, 8 SQL migrations, category seed
+scripts/           owner promotion, production preflight, fresh migration check
+tests/             unit, DB integration, browser journeys
+```
+
+### Notable Architecture Decisions
+
+- **Revision-based publishing.** Article имеет стабильный ID и указатель на approved
+  revision. Новый DRAFT/PENDING не изменяет публичную статью. Частичные индексы,
+  составные FK и транзакции защищают publication lifecycle.
+- **Серверный RBAC.** Проверки в сервисах, свежие role/ban из БД, повторная проверка
+  под блокировкой при изменении. Ban отзывает сессии. Последнего активного ADMIN
+  нельзя удалить из управления; self-ban запрещён.
+- **Социальные связи относятся к Article**, поэтому новая revision сохраняет реакции.
+- **Уведомления сохраняются в транзакции события**, защищены от дублей, без polling/email.
+- **Изображения остаются private.** Сервер проверяет владельца/модератора либо ссылки
+  текущей опубликованной revision; Blob URL и token не передаются клиенту.
+- **Просмотры без IP/fingerprint в ArticleView.** Суточный HMAC, scoped к статье,
+  подписанная first-party cookie, отдельный ключ. Это не anti-fraud система.
 
 ## Локальный запуск
 
-Рекомендуется Node.js 24 LTS, npm 11. Используйте npm и существующий lockfile.
-В package.json явно разрешены install scripts конкретных версий Prisma CLI,
-Prisma engines, unrs-resolver и esbuild для npm 11. Глобальные настройки npm не нужны.
+Нужны Node 24.x, npm, отдельная development PostgreSQL/Neon и доступ к сети.
+VPN можно оставить включённым; при таймаутах проверяйте маршрут к своему endpoint.
 
-```sh
+```powershell
 npm ci
-# Настройте .env и примените миграции, как описано ниже.
+Copy-Item .env.example .env
+# Заполните .env собственными development-настройками.
+npm run db:deploy
+npm run db:seed
 npm run dev
 ```
 
-Откройте [localhost:3000](http://localhost:3000). Для работы авторизации и
-профилей требуется настроенная development-база. Шрифты Golos Text и Lora поставляются локально из npm; обращения
-к Google Fonts при сборке и просмотре не нужны.
+Откройте http://localhost:3000. BETTER_AUTH_URL должен быть этим точным origin.
+Генерируйте два независимых секретных ключа (по одному запуску на ключ):
 
-## Подключение базы
-
-Если `.env` ещё отсутствует, создайте его по `.env.example`. Не заменяйте
-существующий файл: добавляйте недостающие переменные, сохраняя DATABASE_URL.
-
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```sh
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"
 ```
 
-Заполните `DATABASE_URL` строкой подключения к **своей отдельной development
-PostgreSQL базе**. Настоящие credentials и `.env` никогда не коммитятся.
-Требуется стандартный URL с протоколом `postgresql://` или `postgres://`.
-Приложение не зависит от конкретного облачного PostgreSQL provider.
+Значения сохраняются только в локальном .env / secret manager, не в Git и не в чат.
+`npm ci` автоматически генерирует Prisma Client; build также выполняет generation.
+Сборка и проверка schema не требуют подключения к БД. Запуск сервера требует env.
 
-Обязательны три переменные:
+## Environment
+
+Все поля [.env.example](.env.example) намеренно пустые.
 
 | Переменная | Назначение |
 | --- | --- |
-| `DATABASE_URL` | Подключение к вашей development PostgreSQL |
-| `BETTER_AUTH_SECRET` | Случайный секрет минимум 32 символа, одинаковый для экземпляров приложения |
-| `BETTER_AUTH_URL` | Локально `http://localhost:3000`; при развёртывании фактический HTTPS origin |
+| DATABASE_URL | Runtime pooled PostgreSQL URL с TLS; собственный target для каждого окружения |
+| DIRECT_URL | Прямой URL той же БД для Prisma CLI; необязателен локально, явный для production migration shell |
+| BETTER_AUTH_SECRET | Секрет Better Auth, минимум 32 символа |
+| BETTER_AUTH_URL | Точный origin; HTTP только для локального loopback, HTTPS для deployment |
+| ANALYTICS_HASH_SECRET | Независимый HMAC key, минимум 32 символа; обязателен при production запуске |
+| SITE_URL | Реальный production HTTPS origin для canonical/OG/robots/sitemap; равен auth origin |
+| BLOB_READ_WRITE_TOKEN | Секрет private Blob для локальной/non-Vercel среды |
+| BLOB_STORE_ID | Vercel store binding; работает с управляемым VERCEL_OIDC_TOKEN |
 
-Для нового секрета: `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`.
-Скопируйте результат только в `.env`/секреты хостинга. Не публикуйте его.
-Смена секрета делает старые подписанные cookies недействительными.
+На Vercel предпочтителен managed OIDC; токен не копируют вручную.
+NODE_ENV / VERCEL / VERCEL_ENV задаёт платформа. Preview имеет отдельные БД, store,
+ключи и точный HTTPS auth origin; SITE_URL пуст. Preview принудительно noindex.
+Без Blob локально текстовый редактор работает, загрузка файлов отключена.
+Для deployment Blob обязателен. Никаких секретов в NEXT_PUBLIC_*.
+
+## База данных и первый ADMIN
+
+Prisma 7 CLI читает `DIRECT_URL || DATABASE_URL` из prisma.config.ts.
+Приложение использует только DATABASE_URL через PrismaPg. Миграции не запускаются
+в build/postinstall/start. На существующей БД выполняйте `npm run db:status`.
+Новые migrations создаются только в development через `npm run db:migrate`.
+Для применения существующих используйте `npm run db:deploy`; db push не используется.
+
+Seed идемпотентно добавляет только отсутствующие базовые категории; не меняет
+существующие записи, не создаёт пользователей, роли, статьи или фальшивую аналитику.
+После самостоятельной регистрации владельца:
 
 ```sh
-npm run db:deploy
-npm run db:status
-npm run db:generate
+npm run admin:promote -- --email <email-своего-аккаунта> --confirm
 ```
 
-`db:deploy` применяет подготовленные миграции. При дальнейших
-изменениях схемы создавайте новую: `npm run db:migrate -- --name <name>`.
-Эта команда может требовать права на создание shadow database. Не используйте
-`db push` вместо миграций. Начальную миграцию следует применять к пустой базе
-Narra, а не к существующей базе другого проекта.
-
-Prisma 7 читает URL из `prisma.config.ts`, а приложение передаёт его адаптеру
-`@prisma/adapter-pg`. Дополнительный DIRECT_URL не требуется.
-Без URL генерация и проверка схемы работают; реальный доступ к базе
-через `getPrisma()` выдаёт серверную ошибку без вывода credentials.
-Миграции не запускаются автоматически при сборке или старте приложения.
-
-## Структура
-
-```text
-src/app/                   auth/profile/dashboard routes, layout, стили, состояния
-src/app/(home)/            публичная лента и её loading boundary; URL остаётся /
-src/components/layout/     header и footer
-src/components/ui/         минимальные компоненты shadcn/ui
-src/features/auth/         Zod schemas, permissions, auth UI
-src/features/users/        profile schema, action, service, UI
-src/features/articles/     draft services, schemas, editor/autosave, private images
-src/features/moderation/   submission/review, queue, preview и доступ к изображениям
-src/lib/auth/              server/client Better Auth, серверные guards
-src/lib/                   Prisma helper и cn
-src/types/                 общие типы навигации
-src/generated/prisma/      генерируемый клиент; исключён из Git
-prisma/schema.prisma       начальные модели и enums
-prisma/migrations/         версия схемы в SQL
-scripts/promote-admin.ts   только локальное назначение администратора
-tests/                     Vitest unit и реальные DB integration tests
-```
-
-Application/domain/data-access модули добавляются вместе с соответствующими
-функциями. Пустые сервисы, API и abstractions заранее не создаются.
-
-## Модель данных
-
-`User`, `Article`, `ArticleRevision`, `Category`, `Tag`, `ArticleRevisionTag`.
-Существующий `User` используется Better Auth. Добавлены `Account`, `Session`,
-`Verification`, `RateLimit`; внешние ключи ведут на тот же User. Username
-обязателен при регистрации/сохранении профиля, нормализуется в lowercase и
-защищён уникальным индексом PostgreSQL. В схеме поле осталось nullable для
-совместимости со старыми строками; чужие данные миграция не переписывает.
-
-`Article.revisions` — все версии. `Article.publishedRevision` — текущая публичная.
-Составной FK `(Article.id, publishedRevisionId) → (ArticleRevision.articleId, id)`
-исключает чужую revision. Nullable pointer позволяет сначала создать Article,
-затем revision, затем опубликовать её: цикл не мешает созданию черновика.
-Обратная связь `publishedBy` представлена массивом в Prisma, но составной FK
-и уникальный `Article.id` допускают только одну соответствующую публикацию.
-`(articleId, version)` уникален; `content` — PostgreSQL JSONB.
-
-Категория, теги, заголовок, обложка и текст принадлежат revision. Поэтому будущая
-правка категории/тегов тоже не изменит публичный контент до approval.
-При создании Article получает стабильный slug `story-UUID`; заголовок и категория
-черновика могут быть пустыми. Обязательность полей при отправке на модерацию
-проверяется серверным сервисом PHASE 4.
-
-Статусы Article: `DRAFT`, `PUBLISHED`, `ARCHIVED`; статусы revision:
-`DRAFT`, `PENDING`, `APPROVED`, `REJECTED`. Состояние модерации не дублируется
-в Article: опубликованная статья остаётся `PUBLISHED`, пока новая версия ожидает
-проверки. SQL CHECKs запрещают неположительную version, пустую причину rejection
-и неполный набор полей публикации. Эти CHECKs хранятся в миграции: Prisma DSL
-не описывает их. Сохраняйте их в следующих миграциях.
-
-FK **не проверяет** статус `APPROVED`, роль или неизменяемость содержимого.
-Ограничения редактирования реализованы в сервисах PHASE 3;
-транзакционный approval реализован в сервисах PHASE 4.
-Авторизация всегда серверная; клиент не сможет задавать role/status/reviewer.
-Удаление author/reviewer/category/tag ограничено FK. Пользовательский сервис
-удаляет Article только для единственного неопубликованного DRAFT без pointer;
-при существующей публикации удаляет лишь новую DRAFT revision.
-
-## Design system
-
-Токены в `src/app/globals.css`: тёплый светлый фон, угольный текст,
-терракотовый акцент, нейтральные границы, небольшие радиусы. Golos Text для UI,
-Lora для редакционных заголовков. Контейнер 1232 px, будущая область чтения
-736 px (`max-w-reading`), адаптивные отступы и spacing-шкала Tailwind.
-Собственные SVG-иллюстрации декоративные и не зависят от внешних сервисов.
-Поддерживаются keyboard focus, skip-link, reduced motion, семантическая
-навигация и пустое состояние тем.
+Команда работает только с выбранной DATABASE_URL, не создаёт аккаунт и не имеет HTTP API.
+Для production сначала проверьте окружение по [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## Проверки
 
-```sh
+```powershell
 npm run typecheck
 npm run lint
+npm test
 npm run build
 npm run db:validate
 npm run db:status
-npm test
-npm run test:auth:integration
-npm run test:articles:integration
-npm run test:moderation:integration
-npm run test:public:integration
-npm run test:social:integration
-npm run test:notifications:integration
-npm run test:admin:integration
+npm audit --omit=dev
+npm audit
+npm run test:migrations:fresh -- --confirm-development
 ```
 
-`postinstall`, `typecheck` и `build` генерируют Prisma Client. Typecheck сначала
-генерирует типы Next.js, поэтому работает на чистом checkout. ESLint вызывается
-отдельно: Next.js build его не заменяет. `npm test` не использует БД.
-`test:auth:integration` запускайте **только с development DATABASE_URL**:
-он вызывает настоящий Better Auth handler, создаёт случайные тестовые аккаунты,
-проверяет сессии, роли, блокировку и ownership, затем удаляет только свои записи.
-ADMIN в этих тестах никому не назначается. Next.js server для этих тестов не нужен.
-Тесты статей тоже используют настоящую development PostgreSQL, создают свои
-случайные аккаунты, статьи, категорию и теги. Синтетические APPROVED/PENDING
-fixtures нужны для проверки неизменяемости; настоящий workflow публикации
-покрыт отдельными moderation и quality tests.
-Cleanup удаляет только записи данного запуска. Не запускайте интеграционные
-тесты с production DATABASE_URL.
-Playwright и @axe-core/playwright — локальные dev dependencies. Браузерные
-проверки качества описаны ниже; они требуют production server и development БД.
+Последняя команда требует **development** БД и CREATE SCHEMA. Она создаёт уникальную
+временную schema, применяет все migrations через Prisma CLI, проверяет status/checksums,
+удаляет только эту schema. Не запускать с production credentials.
 
-## Совместимость зависимостей
-
-Выбран Prisma 7.10.0: `prisma@latest` на момент создания указывает на Prisma 8 RC
-с другой архитектурой CLI. Next.js 16.3.6 и React 19.3.0 — stable.
-TypeScript ограничен веткой 6.0, ESLint — 9: текущие транзитивные плагины
-`eslint-config-next` не поддерживают TypeScript 7 / ESLint 10. ESLint 9 уже
-помечен upstream как unsupported; обновите его, как только Next.js обновит
-peer ranges своих плагинов. Проверки не отключены и peer conflicts не подавлены.
-
-Для устранения обнаруженных npm audit advisories добавлены точечные overrides
-только в Prisma CLI: `@prisma/config → deepmerge-ts 8.0.2` и
-`prisma → mysql2 3.24.4`. Наш config содержит обычные объекты, без Map и
-custom merge callbacks, затронутых изменениями deepmerge-ts 8. PostgreSQL
-приложения использует `pg`, не MySQL. При обновлении Prisma пересмотрите overrides.
-
-## Регистрация, сессии и профили
-
-`/register` принимает имя (2–80 символов), username (3–30, латинские буквы,
-цифры и `_`, первый символ — буква/цифра), email, пароль (12–128) и подтверждение.
-Zod проверяет поля на клиенте и сервере; подтверждение проверяется формой.
-Email и username нормализуются; PostgreSQL обеспечивает окончательную уникальность,
-включая конкурентные запросы. Пароль хеширует Better Auth (scrypt).
-Новый аккаунт всегда USER, не заблокирован, emailVerified=false.
-Верификация email и восстановление пароля пока не реализованы.
-
-`/login` создаёт сессию в PostgreSQL на 7 дней с обновлением после суток активности.
-Cookie HttpOnly, SameSite=Lax; Secure при HTTPS. Cookie cache отключён.
-Разрешённые переходы после входа: `/`, dashboard/settings/articles/bookmarks,
-editor/new и editor/[id], история статьи, admin/moderation/comments,
-публичные `/articles/[slug]` и `/profile/[username]` с проверенными сегментами.
-Внешний callback отвергается Better Auth; UI использует whitelist returnTo.
-Выход удаляет текущую сессию и cookie и выполняет полную навигацию.
-При восстановлении приватной страницы из BFCache она перезагружается.
-
-Публичный `/profile/[username]` выбирает только имя, username, bio, image и createdAt.
-Аватар пока — инициалы; редактирование URL/загрузка изображений отложены.
-Нет email, ролей, идентификаторов сессий, fake articles или фиктивной статистики.
-Несуществующий профиль возвращает HTTP 404. Бан закрывает аккаунт, но сохраняет публичный профиль и опубликованный контент.
-`/dashboard/settings` обновляет только имя/username/bio текущего пользователя.
-Строгая Zod schema запрещает лишние поля; ID берётся только из сессии,
-isBanned повторно проверяется в условии записи. Старый и новый URL профиля
-инвалидируются после сохранения. `/api/auth/update-user` закрыт для обхода сервиса.
-
-Guards `getCurrentSession`, `getCurrentUser`, `requireAuth`, `requireModerator`,
-`requireAdmin` находятся в `src/lib/auth/guards.ts`. В Server Action достаточно
-`await requireAuth()`; в Route Handler передайте `request.headers`. Проверяйте
-доступ в application service, даже если страница уже защищена. Role/isBanned
-читаются заново из БД: старые сессии не сохраняют отозванные права.
-MODERATOR допускается в moderator guard; ADMIN — в обоих privileged guards.
-`User.role` и `User.isBanned` — единственные источники этих состояний;
-Better Auth admin plugin с отдельными полями блокировки не подключён.
-
-Origin/CSRF проверки включены, включая тестовую среду. Login/signup ограничены
-10 запросами за 60 секунд, остальные auth endpoints — 100/60; счётчики в БД.
-Перед публичным deploy настройте доверенный reverse proxy, перезаписывающий
-`x-forwarded-for`, и при необходимости `advanced.ipAddress.trustedProxies`.
-Не доверяйте заголовкам от произвольного клиента. При неизвестном IP Better Auth
-применяет общий счётчик; локально используется localhost.
-Email/password change и удаление аккаунта не предоставляются в PHASE 2.
-
-## Первый администратор
-
-1. Зарегистрируйте собственный аккаунт через `/register`.
-2. В локальном терминале с доступом к нужной БД выполните:
-
-```sh
-npm run admin:promote -- --email owner@example.com --confirm
-```
-
-Замените пример email на email **своего зарегистрированного аккаунта**.
-Команда требует точного email и явного `--confirm`, отказывается работать с
-отсутствующим/заблокированным аккаунтом и не создаёт пользователей.
-Она не запускается автоматически и недоступна через HTTP. Актуальная роль
-подхватывается guards при следующем запросе. При проверках PHASE 4 роль ADMIN
-назначается только временному тестовому аккаунту, который затем удаляется.
-Реальные аккаунты автоматически не повышаются. Административные страницы описаны ниже.
-
-## Работа со статьями
-
-После входа откройте «Мои статьи» в кабинете или меню аккаунта. Нажмите
-«Написать статью», затем «Создать черновик». Создание происходит по явному
-действию, а не при открытии страницы. Редактор поддерживает заголовок, описание,
-категорию, до 8 тегов, обложку и форматированный текст. Тег добавляется Enter
-или кнопкой «+». Основной документ — Tiptap JSON в PostgreSQL.
-
-Автосохранение запускается через 1,3 секунды после изменений. Запросы одной
-вкладки идут последовательно; обновляются только изменившиеся поля.
-Не закрывайте вкладку до отметки «Сохранено». Кнопка «Сохранить» запускает
-запрос сразу. При сбое текст остаётся в памяти редактора; можно повторить запрос
-или скачать JSON-копию. Это резервная копия, автоматического импорта пока нет.
-Закрытие вкладки/переход по ссылке предупреждает о несохранённых изменениях;
-Back/Forward дополнительно защищены Navigation API в поддерживающих её браузерах.
-Принудительное завершение браузера/ОС нельзя гарантированно обработать.
-
-Каждая revision имеет `version` (номер версии материала) и `editVersion`
-(счётчик сохранений). Второй защищает от запоздавшего запроса и двух вкладок:
-при конфликте сервер отвергает запись, UI сохраняет локальный текст и предлагает
-скачать копию перед явной перезагрузкой. Автоматического слияния текстов нет.
-
-Редактируется только DRAFT. PENDING и ARCHIVED блокируют редактор. Для уже
-опубликованной статьи создаётся отдельная новая DRAFT revision с копией
-категории/тегов. Публичная версия не изменяется. В списке можно удалить свой
-черновик с подтверждением; новая версия опубликованной статьи удаляется отдельно.
-В редакторе доступна отправка на модерацию; публикацию подтверждает модератор.
-
-Для категорий после миграций выполните:
-
-```sh
-npm run db:seed
-```
-
-Seed добавляет отсутствующие базовые категории, не меняет и не удаляет имеющиеся.
-Список статей использует страницы по 20 записей и всегда ограничен текущим автором.
-
-## Изображения и Vercel Blob
-
-Модератор видит изображения только в отправленных/рассмотренных revisions через
-отдельный защищённый endpoint. Авторские image routes по-прежнему закрыты для
-других пользователей; постоянный storage token не передаётся браузеру.
-
-1. Создайте **Private** Blob store в Vercel Storage. Public store не подходит
-   этой реализации: изображения черновика должны быть закрыты от посторонних.
-2. Для локального запуска добавьте `BLOB_READ_WRITE_TOKEN` в `.env`. На Vercel
-   можно подключить store к проекту: SDK использует `BLOB_STORE_ID` вместе с
-   автоматически управляемым `VERCEL_OIDC_TOKEN`. Не задавайте этот токен вручную.
-3. Перезапустите приложение. Проверьте загрузку обложки и изображения в текст.
-   Настоящие секреты не должны попадать в README, Git или NEXT_PUBLIC_*.
-
-Без настройки storage редактор честно отключает выбор файлов, текст продолжает
-работать. Обложка и inline image используют один защищённый серверный upload:
-JPEG/PNG/WebP до 3 MiB, до 20 MP, без анимации/SVG. Сервер проверяет фактические
-bytes/MIME, перекодирует в WebP до 2400 px и удаляет metadata. Размер 3 MiB
-укладывается в ограничение входного запроса Vercel Functions; файл передаётся
-как raw body, не через Server Action. Доступ проверяется до чтения/декодирования.
-До 100 изображений на статью и до 10 успешных/зарезервированных загрузок в минуту.
-
-В БД хранится ArticleImage и связь со статьёй, а в JSON — внутренний URL.
-Автор читает private Blob через свой серверный endpoint с no-store. MODERATOR/ADMIN
-получает доступ к изображениям отправленной версии через отдельный endpoint
-`/api/moderation/revisions/[revisionId]/images/[imageId]` с проверкой ссылок snapshot.
-Storage URL/token не передаются браузеру. При сохранении чужой/несуществующий
-image ID отклоняется. `RichText` подготовлен для безопасного React-рендеринга
-JSON; публичная статья и отдельная выдача опубликованных изображений реализованы в PHASE 5.
-
-Удаление/замена обложки или черновой версии **не удаляет Blob object**:
-другая revision может его использовать. Автоматический garbage collection ещё
-не реализован. Это означает возможное накопление неиспользуемых объектов;
-очистка требует отдельной проверки всех ссылок. При неудаче самой загрузки
-удаляется только её уникальный новый объект, насколько доступно хранилище.
-
-Документация: [Blob SDK](https://vercel.com/docs/vercel-blob/using-blob-sdk).
-Результаты и ограничения реальных проверок — [PHASE3_REPORT.md](PHASE3_REPORT.md).
-
-Prisma CLI по умолчанию ждёт соединение 30 секунд (явный connect_timeout в
-DATABASE_URL имеет приоритет). Application pg pool ограничивает ожидание
-соединения 15 секундами и сохраняет простаивающее соединение 60 секунд.
-При локальных сетевых ошибках проверьте доступность своей development БД/VPN;
-не отключайте TLS и не заменяйте базу случайной внешней базой.
-
-## Модерация и публикация
-
-Автор заполняет заголовок (5–180 символов), описание (10–500), категорию и тело
-статьи (40 непробельных символов или хотя бы одно изображение в тексте).
-Теги и обложка необязательны. «Отправить на модерацию» сначала дожидается
-автосохранения всех актуальных изменений. При ошибке или конфликте отправка
-останавливается; при успехе редактор закрывается и открывается история статьи.
-
-Точное состояние показывают «Мои статьи» и `/dashboard/articles/[id]`:
-
-| Revision | Действия автора | Article до первой / после первой публикации |
-| --- | --- | --- |
-| DRAFT | Сохранить, отправить, удалить черновик | DRAFT / PUBLISHED |
-| PENDING | Просмотреть статус и историю | DRAFT / PUBLISHED |
-| REJECTED | Прочитать причину, создать исправленный DRAFT | DRAFT / PUBLISHED |
-| APPROVED | Создать новый DRAFT, сохранив прежнюю версию | PUBLISHED |
-
-Отправленные и рассмотренные revisions неизменяемы. «Исправить статью» копирует
-последнюю отклонённую версию в новую, сохраняя прежнюю причину в истории.
-При обычном редактировании опубликованной статьи копируется текущая approved
-revision. Уже существующий DRAFT открывается повторно; PENDING занимает
-единственное рабочее место и не позволяет создать параллельный черновик.
-
-Войдите под своим MODERATOR/ADMIN и выберите «Модерация» в меню аккаунта.
-Первого ADMIN назначьте вручную локальной командой из раздела выше, указав
-собственный аккаунт. Очередь `/admin/moderation` показывает реальные PENDING
-по дате отправки, по 20 записей. Preview содержит отправленный snapshot и форму
-решения. Approve публикует его атомарно; Reject требует причины 5–2000 символов.
-Повторное решение запрещено, при одновременном review побеждает одна транзакция.
-Автор с ролью USER не может публиковать сам; MODERATOR/ADMIN могут рассматривать
-все pending, отдельного запрета самопроверки для этих ролей нет.
-
-Approval новой версии переключает `publishedRevisionId`, сохраняя первый
-`publishedAt` и старую APPROVED revision. Rejection новой версии не скрывает
-старую публикацию. После approval публикация появляется на публичных страницах,
-в ленте, поиске и каталогах. Notifications создаются в той же транзакции решения.
-
-`npm run test:moderation:integration` запускайте только с development DATABASE_URL.
-Он создаёт свои временные USER/MODERATOR/ADMIN, проверяет настоящий workflow,
-ограничения и конкурентное решение, затем удаляет только созданные им данные.
-Новые роли реальным пользователям не назначаются. Blob credentials не нужны
-для текстовых сценариев; фактическую загрузку этот тест не имитирует.
-
-В среде разработки VPN оставался включённым. При нестабильном прямом соединении
-с Neon проверки выполнялись через временный локальный TLS-туннель к той же базе;
-это не часть приложения и не постоянная настройка. Для обычного запуска нужен
-устойчивый маршрут к PostgreSQL при ваших сетевых настройках.
-
-## Публичное чтение и поиск
-
-| Маршрут | Назначение |
-| --- | --- |
-| `/` | Лента; первая свежая публикация выделена |
-| `/articles/[slug]` | Текущая одобренная версия статьи |
-| `/profile/[username]` | Профиль и опубликованные истории автора |
-| `/categories`, `/categories/[slug]` | Справочник тем и публикации темы |
-| `/tags/[slug]` | Публикации с текущим публичным тегом |
-| `/search?q=...` | Заголовок, excerpt, имя или username автора |
-| `/api/public/articles/[articleId]/images/[imageId]` | Изображение текущей публикации |
-
-Публичное правило едино: Article=PUBLISHED, publishedRevisionId существует,
-publishedRevision=APPROVED. Бан автора не скрывает публикацию: для этого ADMIN отдельно архивирует Article. Архив и первая неопубликованная
-версия дают 404. Новый DRAFT/PENDING/REJECTED не меняет содержание, SEO, категории,
-теги или изображения прежней публикации. Теги только из приватных версий дают 404.
-
-Каталоги используют `?page=2`, по 12 статей, сортировку publishedAt DESC/id DESC,
-максимум 1000 страниц. Пустой или некорректный page становится 1. В поиске запрос
-сохраняется при переходах; максимум 120 символов, %, _ и backslash ищутся буквально.
-Пустой запрос не запускает поиск. Карточки не загружают полный Tiptap JSON;
-время чтения (≈200 слов/мин) вычисляется при approval и хранится на revision.
-
-Публичные изображения остаются в **private** Blob store. Endpoint проверяет
-принадлежность и наличие ссылки именно в текущем published snapshot. Старые файлы,
-которые перестали использоваться, закрываются для новых запросов; уже полученные
-читателем bytes отозвать невозможно. URL storage и секреты не выдаются.
-Ответы no-store; next/image работает unoptimized, API исключены из optimizer cache.
-Авторский и moderator endpoint по-прежнему отдельно авторизованы.
-Без credentials реальная cloud-выдача не работает; приложение не создаёт fake storage.
-
-Страницы читают PostgreSQL при запросе. Постоянного Data Cache нет, metadata/body
-делят один request-local snapshot. После approval следующая загрузка показывает
-новую revision. Уже открытой гостевой вкладке требуется переход или refresh.
-
-## SEO configuration
-
-Когда известен реальный production domain, задайте серверный `SITE_URL` — его
-HTTPS origin без пути, query и credentials. В `.env.example` значение пустое.
-Это отдельно от `BETTER_AUTH_URL`; не нужно публиковать секреты в NEXT_PUBLIC_*.
-
-С SITE_URL формируются canonical и Open Graph URLs, sitemap.xml и robots.txt.
-OG cover добавляется при настроенном Blob. Без SITE_URL canonical/OG cover URL
-не выдумываются, sitemap пустой, robots запрещает индексирование среды.
-Внутренний поиск имеет noindex/follow. Sitemap содержит только публичные URL,
-исключает dashboard/admin/editor/auth и приватные версии. Профили в sitemap —
-авторы с публичными публикациями, включая заблокированных авторов. Лимиты первой реализации: 10000 статей,
-10000 тегов, 10000 профилей, 200 категорий; перед превышением требуется sharding.
-
-`npm run test:public:integration` проверяет настоящий publish/update workflow,
-видимость, поиск, пагинацию, metadata и image authorization в development БД.
-Создаёт и удаляет только свои временные записи. Реальных Blob объектов не имитирует.
-
-## Социальные функции
-
-`features/likes`, `bookmarks`, `comments`, `follows` разделяют queries/services/actions/UI;
-`features/social` содержит общий доступ, транзакции и кнопки. Модели Like и Bookmark
-имеют PK `(userId, articleId)`, Follow — `(followerId, followingId)`. Comment связан
-с Article/author и опциональным parent. Все реакции относятся к постоянной Article:
-правки, ожидание модерации и approval новой revision не удаляют их.
-
-| Маршрут | Социальные функции |
-| --- | --- |
-| `/articles/[slug]` | Like/unlike, save/unsave, комментарии и ответы |
-| `/dashboard/bookmarks` | Только собственные сохранённые публикации |
-| `/profile/[username]` | Follow/unfollow, followers/following |
-| `/admin/comments` | MODERATOR/ADMIN: список, поиск по ID, hide/restore |
-
-Закладки показывают текущую approved revision, по 12 на страницу, сначала последние
-сохранённые. Архивные/недоступные статьи исключены из выдачи, запись закладки остаётся.
-В меню аккаунта и кабинете есть переход к сохранённым статьям.
-
-Комментарий — обычный текст до 2000 символов. HTML не исполняется. Один уровень
-ответов, parent только той же Article; правила проверяются сервисом, FK и trigger.
-Корни показываются по 10, новые первыми; ответы загружаются по кнопке по 5,
-старые первыми. Максимум 1000 страниц. `?commentsPage=2` переключает корни.
-
-Soft delete автором очищает content и ставит deletedAt, сохраняя ветку. Восстановить
-стёртый текст нельзя. Модератор ставит hiddenAt/hiddenById, может отменить скрытие.
-Скрытые/удалённые тексты и имена не передаются в публичный HTML/RSC/JSON; остаётся
-placeholder. Ответы доступны, новые ответы к такому корню запрещены. Скрытые и
-удалённые сообщения не входят в публичный счётчик. Бан автора сам по себе не скрывает комментарии.
-Модератор видит сохранённый скрытый текст только в защищённом разделе.
-
-Публичные счётчики берутся из PostgreSQL через filtered _count без отдельных запросов
-на каждую карточку. Banned исключаются также из likes/follow counts. Самоподписка
-запрещена, собственный профиль не показывает кнопку. Списки подписчиков не добавлены.
-
-Сервисы читают пользователя из сессии и повторно проверяют ban/role в транзакции.
-Уникальные ограничения и явные create/delete операции делают Like/Bookmark/Follow
-идемпотентными. Конкурентные отправки комментария используют UUID requestId и
-блокировку строки автора в PostgreSQL; действует интервал 5 секунд, максимум 10
-сообщений в минуту, запрет немедленного повтора текста в той же ветке. Удаление
-не сбрасывает лимит. Новый requestId не позволяет обойти частоту отправки. Новые подписки ограничены
-10 за скользящую минуту на аккаунт. Отписка не сбрасывает лимит; повтор уже
-существующей подписки не расходует его. Проверка сериализована в PostgreSQL.
-
-UI обновляется после подтверждения Server Action через revalidatePath. Персональные
-состояния не кэшируются между пользователями. Гостевые кнопки ведут на login с
-безопасным возвратом к статье/профилю; returnTo также поддерживает новые private routes.
-Другим открытым вкладкам требуется навигация/refresh; realtime не добавлен.
-
-`test:social:integration` требует development DATABASE_URL, создаёт случайные
-USER/MODERATOR, публикует Article существующим workflow и очищает только свои записи.
-Проверяет конкурентность, права, скрытие, soft delete, пагинацию и смену revision.
-Опциональный браузерный сценарий хранится в `tests/social.browser.mjs`. Запустите
-production server с той же development БД, затем передайте тесту:
+Полный regression на development БД, с `npm run start` в отдельном терминале:
 
 ```powershell
-$env:NARRA_BROWSER_QA = (Resolve-Path tests/social.browser.mjs).Path
-# Если Playwright не установлен локально, укажите index.mjs доступного runtime:
-$env:PLAYWRIGHT_MODULE = '<absolute path to playwright/index.mjs>'
-$env:CHROMIUM_EXECUTABLE = '<absolute path to chromium executable>'
-npm run test:social:integration
-```
-
-Без NARRA_BROWSER_QA браузерный тест явно skipped. Cookies тестовых сессий передаются
-через stdin дочернему процессу, не сохраняются. Скриншоты — в игнорируемой
-`.playwright-mcp`. Playwright устанавливается как dev dependency; приложение не включает его в client bundle.
-
-## Лента подписок и уведомления
-
-`/following` показывает только текущие публичные версии статей авторов ваших
-подписок: 12 на страницу, сначала последние публикации. Новый черновик/модерация
-не меняют карточку до approval. Гость переходит на login с безопасным возвратом.
-
-`/dashboard/notifications` — личная история, 20 записей на страницу. Колокольчик
-в Header показывает количество непрочитанных и preview пяти последних событий.
-Открытие списка или preview не меняет статус. Переход по событию и явная кнопка
-«Отметить прочитанным» сохраняют readAt; «Прочитать все» обновляет только ваши
-непрочитанные записи. Состояние сохраняется в PostgreSQL после logout/restart.
-Для получения новых событий в другой вкладке обновите страницу или перейдите
-на другую: realtime, email и polling не используются.
-
-Модель Notification и enum NotificationType добавлены седьмой миграцией.
-Сервисы `features/notifications` отвечают за events/queries/read actions/UI.
-События создаются в транзакциях существующих moderation/follow/comment services:
-
-| Тип | Получатель и условие |
-| --- | --- |
-| ARTICLE_APPROVED / ARTICLE_REJECTED | Автор, каждое решение по revision |
-| NEW_FOLLOWER | Автор, новая успешная подписка |
-| ARTICLE_COMMENT | Автор статьи, чужой корневой комментарий |
-| COMMENT_REPLY | Автор корня, чужой ответ; второго уведомления статье нет |
-| FOLLOWED_AUTHOR_PUBLISHED | Активные подписчики, только первая публикация Article |
-
-Approved update не повторяет рассылку подписчикам. UNIQUE(recipientId,eventKey)
-защищает события от дублей; comment requestId/follow count/review status защищают
-исходные операции. После unfollow историческое событие остаётся; новый follow
-может создать новое. Bulk публикация — один INSERT SELECT в общей транзакции.
-Для очень большой аудитории потребуется отдельно проектировать durable fanout;
-текущая реализация атомарна и ограничена timeout исходной транзакции.
-
-Notifications не содержат копий контента. Сервер строит безопасные destinations
-по текущим relations; скрытые/удалённые комментарии не раскрываются. Собственное
-решение модерации открывает точную revision в истории; обсуждение — #comments.
-Удаление связанной сущности обнуляет ссылку и оставляет историю. Неактивным
-получателям новые события не создаются; их история сохраняется.
-
-`npm run test:notifications:integration` требует существующую development БД.
-Он создаёт и удаляет только свои fixtures. Опциональный production-browser QA:
-сначала production server с той же БД, затем
-`$env:NARRA_NOTIFICATION_BROWSER_QA = (Resolve-Path tests/notifications.browser.mjs).Path`.
-PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE настраиваются так же, как для social QA.
-Cookies и временные пароли передаются stdin, не сохраняются; screenshots игнорируются.
-Новых credentials и пакетов PHASE 7 не требует, `.env` сохраняется.
-
-## Administration, Reports & Analytics
-
-| Маршрут | Доступ |
-| --- | --- |
-| `/admin` | ADMIN: показатели платформы и динамика 14 UTC дней |
-| `/admin/users` | ADMIN: поиск/фильтры/роли/ban/unban |
-| `/admin/articles`, `/admin/articles/[id]` | ADMIN: все статьи, история, archive/restore |
-| `/admin/categories` | ADMIN: создание, rename/description, archive/restore |
-| `/admin/moderation`, `/admin/comments`, `/admin/reports` | MODERATOR и ADMIN |
-| `/admin/reports/[id]` | MODERATOR и ADMIN: контекст жалобы и решение |
-| `/dashboard/analytics` | Только собственная статистика активного пользователя |
-
-Проверки прав выполняются в страницах, queries и mutations. MODERATOR не получает
-доступ к platform/users/articles/categories даже по прямому URL. Роль применяется
-при следующем запросе, старая сессия не удерживает отозванные права.
-
-Ban отзывает все Sessions; unban требует нового входа. Self-ban запрещён.
-Нельзя удалить последнего активного ADMIN через ban/demotion; конкурентные изменения
-сериализованы PostgreSQL advisory lock. Другого ADMIN менять можно только с
-сохранением активного администратора. Критические операции требуют подтверждения.
-**Начиная с PHASE 8 бан не скрывает опубликованный контент и публичный профиль.**
-Статьи снимаются с доступа отдельным archive, комментарии — hide. История сохраняется.
-Счётчики likes/followers по-прежнему учитывают active участников.
-
-Archive Article сохраняет publishedRevision и первую publishedAt, версии и реакции.
-Restore возвращает прежнюю одобренную версию; черновик нельзя восстановить как
-публикацию. Архив исключён из feed/search/category/tag/profile/following/bookmarks.
-Новая рассылка notifications при restore не создаётся.
-
-Category slug стабилен после создания. Архивная категория исчезает из навигации
-и выбора новой revision; исторические category URLs и опубликованные статьи
-продолжают работать. Новый draft из старой публикации очищает архивный categoryId.
-Существующий draft сохраняет текст/связь, но перед submit надо выбрать активную
-категорию. Уже PENDING можно рассмотреть с прежней категорией.
-
-«Пожаловаться» доступно у публичной статьи и видимого комментария. Гость получает
-login. Собственный/приватный/скрытый target запрещён; reporter из session. До 10 новых
-жалоб в час. Повтор OPEN не дублируется, после закрытия новая жалоба допускается.
-Report содержит один target, reason/description; OTHER требует пояснения.
-MODERATOR/ADMIN закрывают как RESOLVED/DISMISSED с metadata. Скрытие комментария или
-ADMIN archive и resolution атомарны. DISMISSED не меняет материал. Soft-delete
-комментария сохраняет историю жалобы без стёртого текста. Target/reporter/resolver
-FK Restrict не разрешает физическое удаление контекста без отдельной процедуры.
-
-### Настройка просмотров
-
-Добавьте в `.env` отдельный случайный `ANALYTICS_HASH_SECRET` (минимум 32 символа).
-Пример генерации приведён выше для secrets; не используйте Better Auth key повторно.
-Не копируйте secret в NEXT_PUBLIC или Git. В текущей development среде локальный
-secret создан без вывода значения; при переносе окружения настройте собственный.
-Без него статья читается, но просмотры не регистрируются.
-
-Одна first-party HttpOnly cookie используется и у гостей, и после входа. Срок —
-24 часа, SameSite=Lax, Secure в production. Подписанный случайный token остаётся
-в cookie. В ArticleView — только HMAC, scoped к статье и UTC дню, без IP/userId/
-session token/fingerprint. Один visitor+Article+UTC day даёт один просмотр; повтор
-POST/refresh подавляется UNIQUE в БД. Prefetch/SSR не считаются, действие запускается
-после открытия видимой страницы. Отсутствие аналитики не прерывает чтение.
-Очистка cookies/другой браузер и параллельная первая выдача cookie в разных вкладках
-могут дать новые views; полноценной anti-fraud системы нет. Автоматического retention
-истории hashes пока нет. Смена secret сбрасывает dedup identity.
-
-Аналитика автора показывает views и видимые comments текущих public статей,
-likes всех own статей от active пользователей и active followers. Таблица public
-статей использует 20 строк на страницу. Archive сохраняет views в БД, но исключает
-их из текущих author totals до restore. Platform views включают всю историю,
-platform comments — видимые comments public статей. Trends — 14 дней UTC;
-publication trend учитывает первые публикации, даже впоследствии архивированные.
-Графики имеют текстовую таблицу, данные агрегируются в PostgreSQL.
-
-`npm run test:admin:integration` требует development DATABASE_URL. Один набор
-проверяет реальные services в текущей БД и удаляет только свои fixtures. Второй
-создаёт случайную временную schema, воспроизводит все migrations, проверяет
-последнего ADMIN на изолированных аккаунтах и удаляет только эту schema.
-Нужны права CREATE SCHEMA. Реальные пользователи/роли не меняются.
-
-Для browser QA запустите production server с той же development БД, укажите
-`$env:NARRA_ADMIN_BROWSER_QA = (Resolve-Path tests/administration.browser.mjs).Path`,
-PLAYWRIGHT_MODULE и CHROMIUM_EXECUTABLE, как для social QA выше. Credentials идут
-через stdin; screenshots игнорируются Git. Без переменной browser case явно skipped.
-
-## Проверки качества (PHASE 9)
-
-Установите браузеры один раз:
-
-```sh
 npx playwright install chromium firefox webkit
-npm run build
-npm run start
-```
-
-В другом терминале, с той же **development** БД:
-
-```sh
+$env:NARRA_BROWSER_QA = (Resolve-Path tests/social.browser.mjs).Path
+$env:NARRA_NOTIFICATION_BROWSER_QA = (Resolve-Path tests/notifications.browser.mjs).Path
+$env:NARRA_ADMIN_BROWSER_QA = (Resolve-Path tests/administration.browser.mjs).Path
+npx vitest run tests/auth.integration.test.ts tests/articles.integration.test.ts tests/moderation.integration.test.ts tests/public-content.integration.test.ts tests/social.integration.test.ts tests/notifications.integration.test.ts tests/administration.integration.test.ts tests/admin-protection.integration.test.ts --maxWorkers=1
 npm run test:quality:integration
 ```
 
-Тест создаёт только собственные случайные аккаунты, категории и публикации.
-Пароли/cookies передаются дочернему процессу через stdin, не пишутся в отчёт.
-Он проверяет 29 экранов на 1440/1024/768/390/320 px, axe accessibility,
-smoke Chromium/Firefox/WebKit и настоящий путь регистрации/редактора/модерации/
-социальных действий. Также проверяются offline autosave, конфликт двух вкладок,
-изолированный процесс с недоступной БД (порт 3002) и отменённые запросы.
-Порты 3000 и 3002 должны быть доступны. QA_BASE_URL может изменить адрес основного
-сервера; проверка отказа БД использует отдельный локальный порт 3002.
-Сценарии очищают только свои fixtures; логи/скриншоты в `.playwright-mcp` исключены из Git.
-Не запускайте их против production.
+Quality suite: 29 экранов × 5 ширин, axe, Chromium/Firefox/WebKit, регистрация →
+автосохранение/offline/conflict → reject/correct/approve → social → following/notifications.
+Порты 3000 и 3002 должны быть свободны до запуска серверов. Fixtures случайные,
+cleanup ограничен текущим запуском, credentials передаются через stdin. Логи/скриншоты
+игнорируются Git. NARRA_QUALITY_MODE=audit/journey — диагностика; итоговый прогон без фильтра.
+QA_BASE_URL и PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE — необязательные test-only overrides,
+не production env. NARRA_PUBLIC_BROWSER_QA — отдельный внешний public harness.
 
-Для диагностики можно отдельно выбрать NARRA_QUALITY_MODE=audit (маршруты/axe/smoke)
-или journey (полный пользовательский путь); итоговый acceptance запускается без режима.
-Существующие social/notifications/admin browser harness также работают с локальным
-Playwright, без PLAYWRIGHT_MODULE/CHROMIUM_EXECUTABLE. Старые overrides поддерживаются.
-NARRA_BROWSER_QA относится к social harness. Опциональный внешний public harness
-использует отдельную NARRA_PUBLIC_BROWSER_QA, чтобы совместный regression запуск
-не смешивал разные форматы fixtures.
-Автоматический axe — дополнение к keyboard и visual audit, не сертификат WCAG.
-Точная область фактических проверок и ограничения — в PHASE9_REPORT.md.
-На 4 октября 2026 полный npm audit сообщает 8 high по одной dev-only advisory
-braces без patched release; production-only audit — 0. Несовместимые downgrades
-и force fix не применялись. Подробности и upstream ссылка приведены в отчёте.
+## Deployment
 
-Все timestamps интерфейса имеют явную UTC timezone. Публичный renderer оставляет
-H1 заголовку страницы, нормализует уровни внутренних заголовков и сохраняет исходный
-JSON и визуальные размеры. Редактор показывает исходные уровни автора.
-Ошибка страницы использует Next.js retry(), чтобы повторно запросить данные.
+Vercel + **отдельная production Neon** + **private production Blob**.
+Пошаговая настройка, регионы, migrations, секреты, smoke, rollback и recovery:
+[DEPLOYMENT.md](DEPLOYMENT.md). `npm run env:check:production` проверяет формат env,
+но не подтверждает доступ к облачным ресурсам. Standard Next.js integration,
+Node runtime, без Edge и custom vercel.json. Репозиторий: Dezlart/Narra, main.
+Commit/push выполняет владелец после review; публичный URL не выдуман.
 
-## Следующий этап
+## Security Notes
 
-Только по отдельному заданию: PHASE 10 — финальная подготовка окружения,
-production QA и документация развёртывания. PHASE 10 не начата.
+Auth origin/CSRF checks, HttpOnly/SameSite=Lax cookies, Secure для HTTPS, session cache
+отключён. Точное доверенное origin без wildcard. На Vercel auth rate limiting читает
+platform-managed x-vercel-forwarded-for. На другом host требуется доверенный reverse proxy.
+Пользовательский контент валидируется; изображения проверяются/перекодируются Sharp
+в WebP без metadata. Guarded routes no-store, optimizer не кэширует private images.
+Есть nosniff, запрет iframe embedding, Referrer-Policy и Permissions-Policy.
+CSP с nonce пока не внедрена; широкая unsafe-inline политика не выдаётся за защиту.
+
+## Статус и ограничения
+
+Реальные production ресурсы, Blob E2E и HTTPS production smoke ещё требуют подключения
+и проверки. До этого Narra не объявляется полностью production-ready.
+На 6 октября 2026 runtime audit: 0 уязвимостей; полный audit: 8 high по одной
+[dev-only braces advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm),
+без patched release. Force fix и несовместимые downgrades не применялись.
+Выявленная 6 октября source-map-js advisory устранена совместимым patch 1.2.2.
+
+Также не проверены физический Safari/iOS, screen readers, production-scale нагрузка.
+В author editor возможен умеренный heading-order warning; public renderer нормализует
+уровни без изменения JSON. При отмене запроса возможен Next stream cancellation warning.
+Старые неиспользуемые Blob объекты не удаляются автоматически: нужна отдельная политика
+retention/GC с учётом всех revisions. Email/realtime/advanced BI — будущие расширения.
+
+Приложение хранит аккаунты, статьи, взаимодействия, уведомления и суточные view hashes.
+Перед публичным коммерческим запуском владелец должен подготовить Privacy Policy,
+Terms и правила хранения/удаления данных; юридические тексты-заглушки не добавлены.

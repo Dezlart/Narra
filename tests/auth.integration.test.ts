@@ -47,6 +47,8 @@ describe("real database authentication", () => {
     const headers = sessionHeaders(signup);
     const cookie = headers.get("cookie")!;
     expect(signup.headers.getSetCookie().some((value) => /HttpOnly/i.test(value) && /SameSite=Lax/i.test(value))).toBe(true);
+    const sessionCookie = signup.headers.getSetCookie().find((value) => value.includes("session_token="))!;
+    expect(/;\s*Secure(?:;|$)/i.test(sessionCookie)).toBe(new URL(origin).protocol === "https:");
     const prisma = getPrisma();
     const user = await prisma.user.findUniqueOrThrow({ where: { email: emails[0] } });
     expect(user.role).toBe("USER");

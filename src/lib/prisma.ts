@@ -2,6 +2,7 @@ import "server-only";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { assertRuntimeEnvironment } from "@/lib/environment";
 
 const globalForPrisma = globalThis as unknown as {
   narraPrisma: PrismaClient | undefined;
@@ -11,6 +12,7 @@ let client: PrismaClient | undefined;
 
 /** Lazy initialization allows generation and build without opening a DB connection. */
 export function getPrisma(): PrismaClient {
+  assertRuntimeEnvironment();
   if (client) return client;
   if (globalForPrisma.narraPrisma) return globalForPrisma.narraPrisma;
 

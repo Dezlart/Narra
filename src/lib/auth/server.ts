@@ -23,7 +23,11 @@ function createNarraAuth() {
     trustedOrigins: [origin],
     // Keep the same protection in Vitest: Better Auth otherwise relaxes Origin
     // checking when NODE_ENV=test.
-    advanced: { disableOriginCheck: false, disableCSRFCheck: false },
+    advanced: {
+      disableOriginCheck: false, disableCSRFCheck: false,
+      useSecureCookies: new URL(origin).protocol === "https:",
+      ...(process.env.VERCEL === "1" ? { ipAddress: { ipAddressHeaders: ["x-vercel-forwarded-for"] } } : {}),
+    },
     database: prismaAdapter(prisma, { provider: "postgresql", transaction: true }),
     emailAndPassword: { enabled: true, minPasswordLength: 12, maxPasswordLength: 128 },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24, cookieCache: { enabled: false } },
