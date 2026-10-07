@@ -70,7 +70,7 @@ try {
   await page.getByText("Непрочитанных: 0", { exact: true }).waitFor();
   assert.equal(await unread(page), 0);
   await page.reload({ waitUntil: "networkidle" }); assert.equal(await unread(page), 0);
-  await page.locator('summary[aria-label="Меню аккаунта"]').click();
+  await page.getByRole("button", { name: "Меню аккаунта", exact: true }).click();
   await page.getByRole("button", { name: "Выйти", exact: true }).click();
   await page.waitForURL(base + "/login");
   await open(page, "/dashboard/notifications");

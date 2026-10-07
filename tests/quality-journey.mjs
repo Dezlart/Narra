@@ -41,10 +41,10 @@ export async function journey({ browser, fixture: f, base, open, context, result
   await writer.page.waitForURL(base+"/dashboard");
   await writer.page.getByLabel("Меню аккаунта",{exact:true}).click();
   await writer.page.keyboard.press("Escape");
-  assert.equal(await writer.page.locator('details:has(summary[aria-label="Меню аккаунта"])').getAttribute("open"),null);
+  assert.equal(await writer.page.getByLabel("Меню аккаунта",{exact:true}).getAttribute("aria-expanded"),"false");
   assert(await writer.page.getByLabel("Меню аккаунта",{exact:true}).evaluate(e=>e===document.activeElement));
   await writer.page.getByLabel("Меню аккаунта",{exact:true}).click();
-  await writer.page.getByRole("navigation",{name:"Аккаунт",exact:true}).getByRole("button",{name:"Выйти",exact:true}).click();
+  await writer.page.getByRole("dialog",{name:"Аккаунт",exact:true}).getByRole("button",{name:"Выйти",exact:true}).click();
   await writer.page.waitForURL(base+"/login");
   await login(writer.page,f.registration.email,f.registration.password);
   await open(writer.page,"/editor/new");

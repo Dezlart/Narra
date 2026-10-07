@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { ChevronDown, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { NavigationItem } from "@/types/navigation";
 import { getCurrentUser } from "@/lib/auth/guards";
-import { Avatar } from "@/features/users/avatar";
-import { SignOutButton } from "@/features/auth/sign-out-button";
 import { NotificationBell } from "@/features/notifications/bell";
 import { Disclosure } from "@/components/ui/disclosure";
+import { AccountMenu } from "@/components/layout/account-menu";
 
 const navigation: readonly NavigationItem[] = [
   { label: "Главная", href: "/" },
@@ -29,25 +28,7 @@ export async function SiteHeader() {
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
         {activeUser && <NotificationBell />}
-        {activeUser ? <Disclosure className="mobile-navigation relative">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md" aria-label="Меню аккаунта">
-            <Avatar name={activeUser.name} /><span className="hidden max-w-36 truncate text-sm font-medium sm:inline">{activeUser.name}</span><ChevronDown className="size-4" aria-hidden="true" />
-          </summary>
-          <nav aria-label="Аккаунт" className="absolute right-0 top-14 z-30 max-h-[calc(100dvh-7rem)] w-60 overflow-y-auto overscroll-contain rounded-md border border-border bg-background p-3 shadow-lg">
-            <p className="wrap-anywhere px-3 py-2 text-sm font-medium">{activeUser.name}</p>
-            <Link href="/dashboard" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Личный кабинет</Link>
-            <Link href="/dashboard/articles" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мои статьи</Link>
-            <Link href="/dashboard/analytics" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Моя аналитика</Link>
-            {activeUser.role === "ADMIN" && <Link href="/admin" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Управление платформой</Link>}
-            <Link href="/dashboard/bookmarks" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Сохранённые статьи</Link>
-            <Link href="/dashboard/notifications" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Уведомления</Link>
-            {(activeUser.role === "MODERATOR" || activeUser.role === "ADMIN") && <Link href="/admin/moderation" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Модерация</Link>}
-            {(activeUser.role === "MODERATOR" || activeUser.role === "ADMIN") && <Link href="/admin/comments" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Комментарии</Link>}
-            <Link href="/dashboard/settings" className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Настройки</Link>
-            {activeUser.username && <Link href={`/profile/${activeUser.username}`} className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">Мой профиль</Link>}
-            <div className="mt-2 border-t border-border px-3 pt-3"><SignOutButton /></div>
-          </nav>
-        </Disclosure> : <>
+        {activeUser ? <AccountMenu name={activeUser.name} role={activeUser.role} username={activeUser.username} /> : <>
           <Button asChild variant="ghost" size="sm"><Link href="/login">Войти</Link></Button>
           <Button asChild size="sm" className="hidden sm:inline-flex"><Link href="/register">Регистрация</Link></Button>
         </>}
