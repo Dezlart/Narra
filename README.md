@@ -95,9 +95,10 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'
 | ANALYTICS_HASH_SECRET | Независимый HMAC key, минимум 32 символа; обязателен при production запуске |
 | SITE_URL | Реальный production HTTPS origin для canonical/OG/robots/sitemap; равен auth origin |
 | BLOB_READ_WRITE_TOKEN | Секрет private Blob для локальной/non-Vercel среды |
-| BLOB_STORE_ID | Vercel store binding; работает с управляемым VERCEL_OIDC_TOKEN |
+| BLOB_STORE_ID | Vercel store binding; SDK получает managed OIDC из request context |
 
-На Vercel предпочтителен managed OIDC; токен не копируют вручную.
+На Vercel предпочтителен managed OIDC; runtime token приходит в request context,
+его не добавляют в env и не копируют вручную.
 NODE_ENV / VERCEL / VERCEL_ENV задаёт платформа. Preview имеет отдельные БД, store,
 ключи и точный HTTPS auth origin; SITE_URL пуст. Preview принудительно noindex.
 Без Blob локально текстовый редактор работает, загрузка файлов отключена.

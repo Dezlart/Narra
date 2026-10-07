@@ -1,5 +1,11 @@
 /** Pure server configuration validation. Errors never include input values. */
 type Environment = Record<string, string | undefined>;
+export function blobStorageConfigured(env: Environment = process.env): boolean {
+  const hasStaticToken = Boolean(env.BLOB_READ_WRITE_TOKEN?.trim());
+  const hasManagedVercelOidc = env.VERCEL === "1" && Boolean(env.BLOB_STORE_ID?.trim());
+  return hasStaticToken || hasManagedVercelOidc;
+}
+
 export function configuredOrigin(value: string | undefined, allowLoopback = false): string | undefined {
   try {
     const url = new URL(value ?? "");
@@ -26,7 +32,7 @@ export function environmentIssues(env: Environment, requireDeployment = false): 
     if (env.ANALYTICS_HASH_SECRET && env.ANALYTICS_HASH_SECRET === env.BETTER_AUTH_SECRET) issues.push("ANALYTICS_HASH_SECRET must differ from BETTER_AUTH_SECRET");
   }
   if (hosted) {
-    if (!env.BLOB_READ_WRITE_TOKEN && !(env.BLOB_STORE_ID && env.VERCEL_OIDC_TOKEN)) issues.push("Private Blob credentials are required (BLOB_READ_WRITE_TOKEN or managed OIDC with BLOB_STORE_ID)");
+    if (!blobStorageConfigured(env)) issues.push("Private Blob credentials are required (BLOB_READ_WRITE_TOKEN outside Vercel, or managed OIDC with BLOB_STORE_ID on Vercel)");
     if (env.VERCEL_ENV !== "preview" && (!configuredOrigin(env.SITE_URL) || configuredOrigin(env.SITE_URL) !== origin)) issues.push("SITE_URL must match the public BETTER_AUTH_URL HTTPS origin");
   }
   return issues;

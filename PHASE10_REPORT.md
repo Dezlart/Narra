@@ -51,7 +51,8 @@ PHASE 1–9 зафиксированы. Изменения PHASE 10 оставл
    .env в каталоги не копировался.
 8. **Фактические env:** DATABASE_URL, DIRECT_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
    ANALYTICS_HASH_SECRET, SITE_URL, BLOB_READ_WRITE_TOKEN/BLOB_STORE_ID. Управляемые:
-   NODE_ENV, VERCEL, VERCEL_ENV, VERCEL_OIDC_TOKEN; внутренние NEXT_RUNTIME/NEXT_PHASE.
+   NODE_ENV, VERCEL, VERCEL_ENV; OIDC token в Functions приходит через request context,
+   а при build/local env pull может быть VERCEL_OIDC_TOKEN. Внутренние: NEXT_RUNTIME/NEXT_PHASE.
 9. **Development-only:** локальные DATABASE_URL/auth URL/ключи; test-only NARRA_*_QA,
    NARRA_QUALITY_MODE, QA_BASE_URL, PLAYWRIGHT_MODULE, CHROMIUM_EXECUTABLE.
    Эти overrides не копируются в Vercel Production. Resend key не требуется.
@@ -143,6 +144,21 @@ PHASE 1–9 зафиксированы. Изменения PHASE 10 оставл
     →deploy→owner ADMIN→согласованный smoke/Blob E2E→cleanup; checklist в DEPLOYMENT.md.
 52. **Итог:** CODE READY / INFRASTRUCTURE NOT READY. Real infrastructure NOT VERIFIED.
     Нельзя объявлять PRODUCTION READY без закрытия пунктов 35–45/50.
+
+## Production blocker fix — 7 октября 2026
+
+После реального Vercel deployment обнаружен startup blocker: validation требовала
+`process.env.VERCEL_OIDC_TOKEN` вместе с `BLOB_STORE_ID`. Актуальная Vercel OIDC
+семантика различает build/local env и Functions runtime: в runtime token находится
+в `x-vercel-oidc-token` request context. `@vercel/blob` 2.8.0 использует
+`@vercel/oidc` и получает его во время `put/get/del`; Narra не передаёт static token
+или oidcToken явно и продолжает использовать `access: "private"`.
+
+Validation и `storageConfigured()` теперь принимают managed OIDC только при
+платформенном `VERCEL=1` и непустом `BLOB_STORE_ID`. Вне Vercel требуется
+`BLOB_READ_WRITE_TOKEN`; один `BLOB_STORE_ID` недостаточен. Остальные production
+checks не ослаблены. Ручное добавление `VERCEL_OIDC_TOKEN` не требуется и запрещено
+runbook. Исправление не меняет business logic, публикацию или права доступа.
 
 ## Журнал финальных проверок
 

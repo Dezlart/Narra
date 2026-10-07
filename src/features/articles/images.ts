@@ -7,7 +7,8 @@ import { lockOwnedArticle } from "./service";
 import { idSchema } from "./schemas";
 import { ArticleError } from "./errors";
 import { prepareImage } from "./image-processing";
-export function storageConfigured() { return !!(process.env.BLOB_READ_WRITE_TOKEN || (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN)); }
+import { blobStorageConfigured } from "@/lib/environment";
+export function storageConfigured() { return blobStorageConfigured(); }
 export async function uploadArticleImage(articleInput: unknown, bytes: Buffer, mime: string, requestHeaders?: Headers) {
   const actor = await requireAuth(requestHeaders);
   const articleId = idSchema.parse(articleInput);

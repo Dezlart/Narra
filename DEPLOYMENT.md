@@ -46,9 +46,13 @@ branch type, retention, доступность восстановления, в�
 Preview/Development — отдельный store. В интерфейсе connection environments проверьте
 выбранные пункты: Production и Preview могут быть предвыбраны одновременно.
 
-Предпочтителен управляемый OIDC: store binding `BLOB_STORE_ID` и автоматический
-`VERCEL_OIDC_TOKEN`. SDK сам обновляет токен; не копируйте его вручную и не передавайте
-явно в `put/get`. Альтернатива вне Vercel — server-only `BLOB_READ_WRITE_TOKEN`.
+Предпочтителен управляемый OIDC: в Vercel runtime достаточно store binding
+`BLOB_STORE_ID`. Платформа передаёт короткоживущий OIDC token через request context
+(`x-vercel-oidc-token`), а `@vercel/blob` читает его через `@vercel/oidc`.
+`VERCEL_OIDC_TOKEN` существует как environment variable при build и local env pull,
+но instrumentation не должна требовать его в Functions runtime. Не добавляйте этот
+token вручную и не передавайте `token`/`oidcToken` явно в `put/get/del`.
+Альтернатива вне Vercel — server-only `BLOB_READ_WRITE_TOKEN`.
 Public store несовместим с защитой черновиков. Webhooks/client upload не используются.
 Значения private storage не должны попасть в NEXT_PUBLIC_* или браузерный JSON.
 
@@ -82,14 +86,17 @@ Node runtime сохранён; PrismaPg/Sharp не переводить в Edge.
 | BLOB_READ_WRITE_TOKEN | Только если выбран static-token вариант вместо OIDC |
 
 DIRECT_URL оставьте в защищённой migration shell; на Vercel он не нужен, пока
-миграции выполняются отдельно. VERCEL_OIDC_TOKEN/VERCEL_ENV вручную не задаются
-(имя системной переменной: `VERCEL_ENV`). NEXT_PHASE — внутреннее значение Next.js.
+миграции выполняются отдельно. `VERCEL`, `VERCEL_ENV` и runtime OIDC request header
+управляются платформой. `VERCEL_OIDC_TOKEN` вручную не задаётся. NEXT_PHASE —
+внутреннее значение Next.js.
 
 Получите настоящий assigned domain в Vercel, затем задайте оба URL. Не используйте
 фиктивный narra.example или localhost. Ошибка environment format останавливает runtime
 с именами отсутствующих переменных, без их значений. Сборка не требует этих секретов.
-`npm run env:check:production` проверяет настройки в текущей shell; managed OIDC
-проверяйте в окружении, где платформа действительно предоставляет этот токен.
+`npm run env:check:production` проверяет настройки в текущей shell. Managed OIDC
+с `BLOB_STORE_ID` считается доступным только при платформенном `VERCEL=1`; вне Vercel
+для проверки и работы нужен `BLOB_READ_WRITE_TOKEN`. Реальный OIDC проверяется
+request-time Blob операцией внутри Vercel Function.
 Preflight не доказывает, что БД production, Blob private или credentials рабочие.
 При invalid env instrumentation отклоняет подготовку сервера. Локальный Next 16.3.6
 может вывести Ready до ошибки hook и оставить процесс живым: проверяйте успешный
