@@ -17,9 +17,9 @@ export function Pagination({ feed, path, query }: { feed: PublicFeed; path: stri
     {feed.hasNext ? <Link href={href(feed.page + 1)} className="nav-link">Далее →</Link> : <span />}
   </nav>;
 }
-export function ArticleFeed({ feed, path, query, empty = "Здесь пока нет публикаций" }: { feed: PublicFeed; path: string; query?: string; empty?: string }) {
+export function ArticleFeed({ feed, path, query, empty = "Здесь пока нет публикаций", layout = "grid" }: { feed: PublicFeed; path: string; query?: string; empty?: string; layout?: "grid" | "list" }) {
   return <>
-    {feed.items.length ? <div className="grid gap-x-7 gap-y-10 md:grid-cols-2 lg:grid-cols-3">{feed.items.map((article) => <ArticleCard key={article.id} article={article} />)}</div>
+    {feed.items.length ? <div className={layout === "list" ? "flex flex-col" : "grid gap-x-7 gap-y-10 md:grid-cols-2 lg:grid-cols-3"}>{feed.items.map((article) => <ArticleCard key={article.id} article={article} compact={layout === "list"} />)}</div>
       : <div className="border-y border-dashed border-border py-14 text-center"><BookOpen className="mx-auto mb-4 size-8 text-muted-foreground" aria-hidden="true" /><p className="font-editorial text-2xl">{empty}</p><p className="mt-3 text-sm leading-6 text-muted-foreground">Можно заглянуть в другие темы или вернуться позже.</p><Link href="/" className="mt-5 inline-block text-sm text-primary underline underline-offset-4">К свежим историям</Link></div>}
     <Pagination feed={feed} path={path} query={query} />
   </>;

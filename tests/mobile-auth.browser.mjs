@@ -131,6 +131,37 @@ async function navigationMatrix() {
   console.log("PASS mobile navigation: Chromium/WebKit, guest/auth, all links, registration, Escape, outside dismissal, focus return");
 }
 
+async function visualMatrix() {
+  const browser = await chromium.launch({ headless: true });
+  const widths = [1440, 1024, 768, 390, 320];
+  try {
+    for (const width of widths) {
+      const actor = await createContext(browser, { viewport: { width, height: width <= 390 ? 844 : 900 } }, true);
+      try {
+        for (const path of ["/", "/categories", "/dashboard"]) {
+          await actor.page.goto(`${fixture.base}${path}`, { waitUntil: "networkidle" });
+          await assertActorState(actor.page, true);
+          const dimensions = await actor.page.evaluate(() => ({ viewport: window.innerWidth, content: document.documentElement.scrollWidth }));
+          assert.ok(dimensions.content <= dimensions.viewport, `${width}:${path} has horizontal overflow (${dimensions.content} > ${dimensions.viewport})`);
+          if (path === "/categories") assert.equal((await actor.page.locator("main").innerText()).includes("↗"), false);
+          if (path === "/dashboard") {
+            for (const label of ["Моя аналитика", "Сохранённые", "Лента подписок", "Уведомления"]) {
+              await actor.page.getByRole("link", { name: new RegExp(label) }).waitFor();
+            }
+          }
+          if (process.env.NARRA_CAPTURE_QA === "1" && (width === 1440 || width === 390)) {
+            const pageName = path === "/" ? "home" : path.slice(1);
+            await actor.page.screenshot({ path: `.next/qa-${pageName}-${width}.png`, fullPage: true });
+          }
+        }
+        assert.deepEqual(actor.errors, [], `${width}px visual smoke emitted page errors`);
+      } finally { await actor.context.close(); }
+    }
+  } finally { await browser.close(); }
+  console.log("PASS responsive UI: home, categories and authenticated dashboard at 1440/1024/768/390/320 without overflow");
+}
+
 if (mode === "search") await searchMatrix();
 else if (mode === "navigation") await navigationMatrix();
+else if (mode === "visual") await visualMatrix();
 else throw new Error(`Unknown mobile/auth browser mode: ${mode}`);

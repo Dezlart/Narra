@@ -32,7 +32,7 @@ async function waitForServer() {
   throw new Error("Narra production server did not start for mobile/auth regression.");
 }
 
-function runBrowser(mode: "search" | "navigation") {
+function runBrowser(mode: "search" | "navigation" | "visual") {
   return new Promise<void>((resolve, reject) => {
     const child = spawn(process.execPath, ["tests/mobile-auth.browser.mjs", JSON.stringify({ base, query, slug, cookie: people[0].cookie }), mode], {
       cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"],
@@ -100,3 +100,4 @@ afterAll(async () => {
 
 it("keeps public search identical for guest/auth across desktop and mobile engines", () => runBrowser("search"), 180_000);
 it("navigates from the mobile menu in Chromium and WebKit for guest/auth", () => runBrowser("navigation"), 180_000);
+it("keeps redesigned public and dashboard pages responsive", () => runBrowser("visual"), 180_000);

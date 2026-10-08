@@ -14,6 +14,10 @@
 - Preview изолирован по DB/store/keys и принудительно noindex без production canonicals.
 - Vercel Node 24.x, стандартная Next.js integration, прежний PrismaPg и Sharp.
   Private image proxy и publication constraints сохранены. Email/realtime/queues не добавлены.
+- Production UI использует content-first редакционную главную: адаптивные left/feed/right
+  колонки, featured publication, компактную ленту и sidebar только из реальных public
+  данных. Категории используют единые SVG icons, кабинет — адаптивную action grid;
+  доменная модель, auth и publication visibility не менялись.
 
 ## Решения PHASE 9 (2–4 октября 2026)
 
