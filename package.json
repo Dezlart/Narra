@@ -31,7 +31,8 @@
     "test:notifications:integration": "vitest run tests/notifications.integration.test.ts",
     "test:admin:integration": "vitest run tests/administration.integration.test.ts tests/admin-protection.integration.test.ts",
     "test:quality:integration": "vitest run tests/quality.integration.test.ts",
-    "test:account-menu:browser": "vitest run tests/account-menu.integration.test.ts"
+    "test:account-menu:browser": "vitest run tests/account-menu.integration.test.ts",
+    "test:mobile-auth:browser": "vitest run tests/mobile-auth.integration.test.ts"
   },
   "dependencies": {
     "@better-auth/prisma-adapter": "^1.7.6",

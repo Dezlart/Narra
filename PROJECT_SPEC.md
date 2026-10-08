@@ -22,8 +22,9 @@
   начиная с H2 без пропусков уровней. Визуальный уровень сохранён отдельно.
   JSON approved revisions не переписывается. Tiptap продолжает редактировать
   исходные уровни; несогласованный outline внутри author document возможен.
-- Навигация остаётся Server Component. Маленький Disclosure отвечает за
-  Escape/outside/blur dismissal, focus return и закрытие меню после перехода.
+- Навигация остаётся Server Component. Интерактивные header menus используют
+  controlled Radix Popover с Escape/outside dismissal и возвратом фокуса;
+  mobile links выполняют явную full-page navigation для надёжного iOS tap.
 - Общая MutationForm вынесена из admin в components/ui: публичная жалоба не
   импортирует административные формы. Неиспользуемое presentation demo удалено.
 - Все даты/время отображаются с явной UTC timezone. Error boundary использует

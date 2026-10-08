@@ -81,10 +81,10 @@ try {
   await mobileNavigation.waitFor();
   await page.keyboard.press("Escape");
   await mobileNavigation.waitFor({ state: "hidden" });
-  assert.equal(await mobileTrigger.evaluate((element) => element === document.activeElement), true);
+  await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Открыть меню");
 
   assert.deepEqual(errors, []);
-  console.log("PASS account menu: edge clicks, dashboard navigation, Escape focus return, outside dismissal, mobile disclosure, no page crash");
+  console.log("PASS account menu: edge clicks, dashboard navigation, Escape focus return, outside dismissal, mobile popover, no page crash");
 } finally {
   await browser.close();
 }

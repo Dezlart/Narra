@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { NavigationItem } from "@/types/navigation";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { NotificationBell } from "@/features/notifications/bell";
-import { Disclosure } from "@/components/ui/disclosure";
 import { AccountMenu } from "@/components/layout/account-menu";
+import { MobileNavigation } from "@/components/layout/mobile-navigation";
 
 const navigation: readonly NavigationItem[] = [
   { label: "Главная", href: "/" },
@@ -24,7 +23,7 @@ export async function SiteHeader() {
           narra<span className="text-primary">.</span>
         </Link>
         <nav aria-label="Основная навигация" className="hidden items-center gap-8 text-sm font-medium lg:flex">
-          {navigation.map((item) => <Link key={item.href} href={item.href} className="nav-link">{item.label}</Link>)}
+          {navigation.map((item) => <Link key={item.href} href={item.href} prefetch={!activeUser && item.href === "/following" ? false : undefined} className="nav-link">{item.label}</Link>)}
         </nav>
         <div className="ml-auto flex items-center gap-2 lg:ml-0">
         {activeUser && <NotificationBell />}
@@ -32,15 +31,7 @@ export async function SiteHeader() {
           <Button asChild variant="ghost" size="sm"><Link href="/login">Войти</Link></Button>
           <Button asChild size="sm" className="hidden sm:inline-flex"><Link href="/register">Регистрация</Link></Button>
         </>}
-        <Disclosure className="mobile-navigation relative lg:hidden">
-          <summary className="flex size-11 cursor-pointer list-none items-center justify-center rounded-md border border-border" aria-label="Открыть меню">
-            <Menu className="size-5" aria-hidden="true" />
-          </summary>
-          <nav aria-label="Мобильная навигация" className="absolute right-0 top-14 z-20 w-60 border border-border bg-background p-3 shadow-lg">
-            {navigation.map((item) => <Link key={item.href} href={item.href} className="block rounded-sm px-3 py-3 text-sm hover:bg-muted">{item.label}</Link>)}
-            {!activeUser && <Link href="/register" className="mt-2 block rounded-sm bg-primary px-3 py-3 text-sm text-primary-foreground sm:hidden">Регистрация</Link>}
-          </nav>
-        </Disclosure>
+        <MobileNavigation items={navigation} showRegistration={!activeUser} />
         </div>
       </div>
     </header>
